@@ -8,6 +8,9 @@ the centre of the BedePlex mandala, the student throws two dice:
 - the **sub-stance tetrahedron**, which chooses the sub-room: Closet, Chamber,
   Alcove or Parlour.
 
+When they land, the orientation line writes itself in, naming the Faculty as
+the Daybook does: "…through WEAVE, and I am practising it, with Sam."
+
 The result is chosen **first**, with `crypto.getRandomValues`, so it can be
 logged (to the Daybook, later) before a die leaves the hand. The dice then land
 on it, with real 3D physics and sound. The record and the animation never
@@ -61,9 +64,8 @@ Cannon-es" approach:
   the corner. So the three faces round the top vertex all show its sub-room at
   the top.
 
-dice-box-threejs stays a dependency: it is where the sounds came from (see
-below), and the spike is recorded against it. None of its code is imported, so
-none of it is in the bundle.
+dice-box-threejs is no longer a dependency. Its wood sounds were copied into
+`public/sounds/` (see below), and none of its code was ever imported.
 
 ### How a predetermined throw works
 
@@ -107,7 +109,5 @@ There is a sound toggle beside the Throw button, and the choice is remembered.
 
 - Every preposition except "at the Drawing Board" is provisional, and is marked
   so in `src/faces.ts`.
-- The Skhool slot writes "the {Colour} School" (for example "the Green
-  School"). The goal did not fix its wording.
 - The School colours here are the prototype's own, as given in the goal, not
   the ic-house-style tokens.

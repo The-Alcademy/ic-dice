@@ -34,6 +34,25 @@ interface Simulation {
 }
 type Which = 'cube' | 'tetra';
 export declare function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation;
+/**
+ * The orientation that brings the cube face carrying School `chosen` up, by the
+ * smallest rotation from `q`. The labels stay where they are: the die is turned
+ * to its own face, as a hand would turn a real one.
+ */
+export declare function cubeTurnTo(q: THREE.Quaternion, labels: number[], chosen: number): THREE.Quaternion;
+/** The orientation that brings the tetrahedron's vertex carrying `chosen` to the apex, by the smallest rotation from `q`. */
+export declare function tetraTurnTo(q: THREE.Quaternion, labels: number[], chosen: number): THREE.Quaternion;
+/** How high the tetrahedron's centre sits when it rests on the floor in orientation `q`. */
+export declare function tetraRestHeight(q: THREE.Quaternion): number;
+/** What a turned die shows: for the tests, and for reading back after a turn. */
+export declare function cubeShows(q: THREE.Quaternion, labels: number[]): {
+    label: number;
+    flat: number;
+};
+export declare function tetraShows(q: THREE.Quaternion, labels: number[]): {
+    label: number;
+    flat: number;
+};
 export interface Landing {
     /** Index into CUBE / TETRA, as read off the die at rest. */
     cube?: number;
@@ -59,6 +78,15 @@ export interface Clearing {
         cube?: number;
         tetra?: number;
     }): Landing;
+    /**
+     * Turn the named dice in place to show the given faces: a short, smooth
+     * rotation, lifting just clear of the floor. No throw, no sound, no landing.
+     * `ms` 0 turns at once. Resolves when they are still.
+     */
+    turn(chosen: {
+        cube?: number;
+        tetra?: number;
+    }, ms: number): Promise<Landing>;
     onImpact: (impact: Impact) => void;
     onLand: () => void;
     /** Stop drawing, and release the WebGL context and every GPU resource. */

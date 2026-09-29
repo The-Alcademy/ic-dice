@@ -558,6 +558,43 @@ function tetraUp(q: THREE.Quaternion): { vertex: number; flat: number } {
   return { vertex: best.vertex, flat: dir.y };
 }
 
+// ---------------------------------------------------------------- turning --
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * The orientation that brings the cube face carrying School `chosen` up, by the
+ * smallest rotation from `q`. The labels stay where they are: the die is turned
+ * to its own face, as a hand would turn a real one.
+ */
+export function cubeTurnTo(q: THREE.Quaternion, labels: number[], chosen: number): THREE.Quaternion {
+  const face = labels.indexOf(chosen);
+  const n = new THREE.Vector3(...CUBE_FACES[face].n).applyQuaternion(q);
+  return new THREE.Quaternion().setFromUnitVectors(n, UP).multiply(q);
+}
+
+/** The orientation that brings the tetrahedron's vertex carrying `chosen` to the apex, by the smallest rotation from `q`. */
+export function tetraTurnTo(q: THREE.Quaternion, labels: number[], chosen: number): THREE.Quaternion {
+  const vertex = labels.indexOf(chosen);
+  const dir = new THREE.Vector3(...TETRA_VERTS[vertex]).normalize().applyQuaternion(q);
+  return new THREE.Quaternion().setFromUnitVectors(dir, UP).multiply(q);
+}
+
+/** How high the tetrahedron's centre sits when it rests on the floor in orientation `q`. */
+export function tetraRestHeight(q: THREE.Quaternion): number {
+  return -Math.min(...TETRA_VERTS.map((v) => new THREE.Vector3(...v).applyQuaternion(q).y));
+}
+
+/** What a turned die shows: for the tests, and for reading back after a turn. */
+export function cubeShows(q: THREE.Quaternion, labels: number[]): { label: number; flat: number } {
+  const up = cubeUp(q);
+  return { label: labels[up.face], flat: up.flat };
+}
+export function tetraShows(q: THREE.Quaternion, labels: number[]): { label: number; flat: number } {
+  const up = tetraUp(q);
+  return { label: labels[up.vertex], flat: up.flat };
+}
+
 // ---------------------------------------------------------------- the box --
 
 export interface Landing {
@@ -574,6 +611,12 @@ export interface Clearing {
   roll(chosen: { cube?: number; tetra?: number }): Promise<Landing>;
   /** Put the dice at rest on the chosen results, with no throw (reduced motion). */
   place(chosen: { cube?: number; tetra?: number }): Landing;
+  /**
+   * Turn the named dice in place to show the given faces: a short, smooth
+   * rotation, lifting just clear of the floor. No throw, no sound, no landing.
+   * `ms` 0 turns at once. Resolves when they are still.
+   */
+  turn(chosen: { cube?: number; tetra?: number }, ms: number): Promise<Landing>;
   onImpact: (impact: Impact) => void;
   onLand: () => void;
   /** Stop drawing, and release the WebGL context and every GPU resource. */
@@ -765,6 +808,55 @@ export function createClearing(host: HTMLElement): Clearing {
       clearing.onLand();
 
       // 5. what the dice show, read off the dice themselves
+      const shown = read();
+      return {
+        ...(chosen.cube !== undefined ? { cube: shown.cube, cubeAt: shown.cubeAt } : {}),
+        ...(chosen.tetra !== undefined ? { tetra: shown.tetra, tetraAt: shown.tetraAt } : {}),
+      };
+    },
+
+    async turn(chosen, ms) {
+      if (playing) throw new Error('The dice are already rolling');
+      playing = true;
+      try {
+        const moves = (['cube', 'tetra'] as Which[])
+          .filter((w) => chosen[w] !== undefined)
+          .map((w) => {
+            const mesh = meshes[w];
+            const q0 = mesh.quaternion.clone();
+            const q1 = w === 'cube' ? cubeTurnTo(q0, cubeLabels, chosen.cube!) : tetraTurnTo(q0, tetraLabels, chosen.tetra!);
+            const y0 = mesh.position.y;
+            const y1 = w === 'cube' ? CUBE_HALF : tetraRestHeight(q1);
+            return { w, mesh, q0, q1, y0, y1, turns: q0.angleTo(q1) > 1e-3 };
+          })
+          .filter((m) => m.turns);
+        // lift by what the corners need to clear the floor while the die turns
+        const LIFT = { cube: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, tetra: 0.2 };
+        const pose = (k: number) => {
+          const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; // ease in and out
+          for (const m of moves) {
+            m.mesh.quaternion.copy(m.q0).slerp(m.q1, e);
+            m.mesh.position.y = m.y0 + (m.y1 - m.y0) * e + LIFT[m.w] * Math.sin(Math.PI * e);
+          }
+        };
+        if (moves.length && ms > 0) {
+          await new Promise<void>((done) => {
+            const start = performance.now();
+            const tick = () => {
+              const k = Math.min(1, (performance.now() - start) / ms);
+              pose(k);
+              if (k >= 1 || destroyed) done();
+              else requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+          });
+        }
+        if (destroyed) throw new Error('The tray was destroyed during the turn');
+        pose(1);
+        render();
+      } finally {
+        playing = false;
+      }
       const shown = read();
       return {
         ...(chosen.cube !== undefined ? { cube: shown.cube, cubeAt: shown.cubeAt } : {}),

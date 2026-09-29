@@ -38,6 +38,12 @@ export interface RollResult {
   subStance?: SubStance;
 }
 
+/** Which dice to turn, and to which face. A face must be given: showing is not choosing. */
+export interface ShowPick {
+  skhool?: SkhoolLetter;
+  subStance?: SubStance;
+}
+
 export interface DiceTrayOptions {
   /** Sound on or off to begin with. Default: on. */
   sound?: boolean;
@@ -50,6 +56,13 @@ export interface DiceTrayOptions {
 export interface DiceTray {
   /** Throw the dice named in `pick`, landing on the faces given; resolves once visible motion stops. */
   roll(pick: RollPick): Promise<RollResult>;
+  /**
+   * Turn the named dice in place to show the given faces: for a result the
+   * student set by hand. A short smooth rotation (at once under reduced motion)
+   * — no throw, no sound, no ripple, and onChosen is not called: nothing was
+   * chosen by the dice. Resolves with what the dice now show.
+   */
+  show(pick: ShowPick): Promise<RollResult>;
   setSound(on: boolean): void;
   /** Release WebGL, audio and listeners, and empty `el` of everything the tray put there. */
   destroy(): void;
@@ -82,6 +95,9 @@ function releaseJost() {
     jost = null;
   }
 }
+
+/** How long a die takes to turn to a face set by hand. */
+const SHOW_MS = 450;
 
 export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): DiceTray {
   let soundOn = opts.sound ?? true;
@@ -189,6 +205,26 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
     },
 
     /** Turning sound off silences the next sound, not one already ringing, as the page always has. */
+    async show(pick) {
+      await ready;
+      if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
+      const chosen: { cube?: number; tetra?: number } = {};
+      if (pick.skhool !== undefined) {
+        chosen.cube = CUBE.findIndex((s) => s.letter === pick.skhool);
+        if (chosen.cube < 0) throw new Error(`No School ${String(pick.skhool)} on the cube`);
+      }
+      if (pick.subStance !== undefined) {
+        const sub = pick.subStance;
+        chosen.tetra = TETRA.findIndex((t) => t === sub || t.room === sub.room);
+        if (chosen.tetra < 0) throw new Error(`No sub-stance ${sub.room} on the tetrahedron`);
+      }
+      const shown = await clearing.turn(chosen, isReduced() ? 0 : SHOW_MS);
+      return {
+        ...(shown.cube !== undefined ? { skhool: CUBE[shown.cube].letter } : {}),
+        ...(shown.tetra !== undefined ? { subStance: TETRA[shown.tetra] } : {}),
+      };
+    },
+
     setSound(on) {
       soundOn = on;
     },

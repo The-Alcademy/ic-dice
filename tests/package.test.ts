@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as pkg from '../src/index';
-import type { RollPick, SkhoolLetter, SubStance } from '../src/index';
+import type { DiceTray, RollPick, ShowPick, SkhoolLetter, SubStance } from '../src/index';
 
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const at = (p: string) => new URL(`../${p.replace(/^\.\//, '')}`, import.meta.url);
@@ -37,6 +37,17 @@ describe('the built package', () => {
     expect(js).toMatch(/from ["']three["']/);
     expect(manifest.peerDependencies.three).toBeDefined();
     expect(manifest.dependencies?.three).toBeUndefined();
+  });
+});
+
+describe('showing a face set by hand', () => {
+  it('takes a given face for either die, never "random": showing is not choosing', () => {
+    // checked by tsc as part of npm run build; a no-op at run time
+    expectTypeOf<ShowPick['skhool']>().toEqualTypeOf<SkhoolLetter | undefined>();
+    expectTypeOf<ShowPick['subStance']>().toEqualTypeOf<SubStance | undefined>();
+    expectTypeOf<DiceTray['show']>().parameter(0).toEqualTypeOf<ShowPick>();
+    const pick: ShowPick = { skhool: 'R', subStance: pkg.TETRA[0] };
+    expect(pick.skhool).toBe('R');
   });
 });
 

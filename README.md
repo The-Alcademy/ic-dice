@@ -51,6 +51,9 @@ const tray = mountDiceTray(document.getElementById('tray')!, {
 const { skhool, subStance } = await tray.roll({ skhool: 'random', subStance: 'random' });
 const line = thresholdLine(schoolByLetter(skhool!), subStance!, { with: 'Ada' }); // or { with: null } for alone; left out, it is Sam
 
+// the student set a face by hand: turn that die to it — no throw, no sound, no onChosen
+await tray.show({ skhool: 'R' });
+
 tray.setSound(false);
 tray.destroy(); // releases WebGL, audio and listeners, and empties the element
 ```
@@ -61,6 +64,11 @@ tray.destroy(); // releases WebGL, audio and listeners, and empties the element
   `subStance: TETRA[1]`) to land on that one.
 - The tray fills its element and follows it when it is resized. Give the
   element a size; a square suits the Clearing.
+- `show()` turns the named dice in place to faces the student set by hand: a
+  short smooth rotation (about 450 ms; at once under reduced motion), lifting
+  just clear of the Clearing. There is no throw, no sound and no ripple, and
+  `onChosen` is not called, since the dice chose nothing. It takes a face, never
+  `'random'`.
 - Motion follows `prefers-reduced-motion` unless `reducedMotion` is passed.
 - The one thing it adds outside its element is the Jost face, in
   `document.fonts`; the last tray's `destroy()` removes it.

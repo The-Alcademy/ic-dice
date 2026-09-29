@@ -21,22 +21,71 @@ and checks them against the record.
 npm install
 npm run dev      # http://localhost:5173
 npm test         # vitest: faces and the Porter's line, no WebGL
-npm run build    # type-check, then the production build in dist/
+npm run build    # type-check; the library into dist/; the demo into site/
 ```
 
-It deploys to Vercel as a plain Vite app, with no configuration.
+The demo page deploys to Vercel from `site/` (`vercel.json`).
+
+## Using the tray
+
+The roller is a module any IC app can mount: framework-free, drawing only
+inside the element it is given. The sounds and the Jost for the cube's letters
+are inlined in `dist/ic-dice.js`, so a host copies no files. `three` is a peer
+dependency; `cannon-es` comes with the package. `dist/` is committed, so the
+package installs straight from git with no build step:
+
+```
+npm install github:The-Alcademy/ic-dice three
+```
+
+```ts
+import { mountDiceTray, schoolByLetter, thresholdLine } from 'ic-dice';
+
+const tray = mountDiceTray(document.getElementById('tray')!, {
+  sound: true,
+  // called with the result before a die moves, so it can be logged first
+  onChosen: (result) => daybook.log(result),
+});
+
+// throw both dice, each onto a random face; or name a face, or leave a die out
+const { skhool, subStance } = await tray.roll({ skhool: 'random', subStance: 'random' });
+const line = thresholdLine(schoolByLetter(skhool!), subStance!);
+
+tray.setSound(false);
+tray.destroy(); // releases WebGL, audio and listeners, and empties the element
+```
+
+- `roll()` throws only the dice named in the pick, and resolves once visible
+  motion stops. Give `'random'` to have the tray choose, with
+  `crypto.getRandomValues`, or a face (`skhool: 'W'`,
+  `subStance: TETRA[1]`) to land on that one.
+- The tray fills its element and follows it when it is resized. Give the
+  element a size; a square suits the Clearing.
+- Motion follows `prefers-reduced-motion` unless `reducedMotion` is passed.
+- The one thing it adds outside its element is the Jost face, in
+  `document.fonts`; the last tray's `destroy()` removes it.
+- The sounds and the font are `data:` URLs. A host with a Content Security
+  Policy needs `media-src data:` and `font-src data:`.
+
+The package also exports the faces (`CUBE`, `TETRA`, `schoolByLetter`, the
+`SkhoolLetter` and `SubStance` types) and the Porter's lines
+(`thresholdLine`, `orientationLine`).
 
 ## Files
 
 | File | What it is |
 |---|---|
+| `src/index.ts` | The package entry. |
+| `src/tray.ts` | `mountDiceTray`: the roller as a mountable module, with its sounds, font, ripple and result check. |
 | `src/faces.ts` | The single source of truth: the six Schools and the four sub-stances, exactly as given. |
 | `src/porter.ts` | The Head Porter's threshold line, and the orientation line's slots. |
 | `src/dice.ts` | The dice, the Clearing, the physics and the predetermined landing. |
-| `src/main.ts` | The page: choosing, throwing, sound, the slots, the ripple, the Porter. |
-| `index.html` | The page and its styles. |
-| `public/sounds/` | The dice sounds; `ATTRIBUTION.md` credits them. |
-| `tests/` | `faces.test.ts`, `porter.test.ts`. |
+| `src/main.ts` | The demo page, mounting the tray as a host would: the slots, the Porter, the sound toggle. |
+| `index.html` | The demo page and its styles. |
+| `src/sounds/` | The dice sounds; `ATTRIBUTION.md` credits them. |
+| `src/fonts/` | Jost (latin, variable), byte for byte as Google Fonts serves it, with its OFL licence. |
+| `dist/` | The built package, committed: `ic-dice.js` and `types/`. |
+| `tests/` | Faces, the Porter, the relabelling, and the package itself. |
 
 ## Route taken: three + cannon-es, not dice-box-threejs
 
@@ -65,7 +114,7 @@ Cannon-es" approach:
   the top.
 
 dice-box-threejs is no longer a dependency. Its wood sounds were copied into
-`public/sounds/` (see below), and none of its code was ever imported.
+`src/sounds/` (see below), and none of its code was ever imported.
 
 ### How a predetermined throw works
 
@@ -101,7 +150,7 @@ has no audio files, and nothing in its renderer, settings, README or changelog
 plays audio (checked 29 September 2026). As the goal allowed, the sounds are
 **dice-box-threejs's own assets, the "wood" set** (MIT): wood-on-wood clacks
 when the dice strike each other, wood-tray hits when they strike the Clearing,
-and a wood-table knock on landing. See `public/sounds/ATTRIBUTION.md`.
+and a wood-table knock on landing. See `src/sounds/ATTRIBUTION.md`.
 
 There is a sound toggle beside the Throw button, and the choice is remembered.
 

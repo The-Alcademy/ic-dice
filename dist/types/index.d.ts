@@ -1,0 +1,4 @@
+export { mountDiceTray, chooseIndex } from './tray';
+export type { DiceTray, DiceTrayOptions, RollPick, RollResult } from './tray';
+export * from './faces';
+export * from './porter';

@@ -552,6 +552,8 @@ export interface Clearing {
   place(chosen: { cube?: number; tetra?: number }): Landing;
   onImpact: (impact: Impact) => void;
   onLand: () => void;
+  /** Stop drawing, and release the WebGL context and every GPU resource. */
+  destroy(): void;
 }
 
 export function createClearing(host: HTMLElement): Clearing {
@@ -560,6 +562,8 @@ export function createClearing(host: HTMLElement): Clearing {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // sized by its host, with no stylesheet needed
+  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -638,16 +642,19 @@ export function createClearing(host: HTMLElement): Clearing {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
   };
-  new ResizeObserver(resize).observe(host);
+  const observer = new ResizeObserver(resize);
+  observer.observe(host);
   resize();
 
   let playing = false;
+  let destroyed = false;
+  let frame = 0;
   const render = () => renderer.render(scene, camera);
   const loop = () => {
     render();
-    requestAnimationFrame(loop);
+    frame = requestAnimationFrame(loop);
   };
-  requestAnimationFrame(loop);
+  frame = requestAnimationFrame(loop);
 
   const toScreen = (p: THREE.Vector3) => {
     const v = p.clone().project(camera);
@@ -670,6 +677,7 @@ export function createClearing(host: HTMLElement): Clearing {
   const clearing: Clearing = {
     onImpact: () => {},
     onLand: () => {},
+    destroy: () => {},
 
     async roll(chosen) {
       if (playing) throw new Error('The dice are already rolling');
@@ -721,11 +729,12 @@ export function createClearing(host: HTMLElement): Clearing {
             meshes[w].quaternion.copy(qa).slerp(qb, k);
           });
           while (nextImpact < sim!.impacts.length && sim!.impacts[nextImpact].t <= t) clearing.onImpact(sim!.impacts[nextImpact++]);
-          if (i >= count - 1) done();
+          if (i >= count - 1 || destroyed) done();
           else requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       });
+      if (destroyed) throw new Error('The tray was destroyed during the throw');
       order.forEach((w, d) => thrown.includes(w) && setPose(w, sim!.final[d]));
       render();
       playing = false;
@@ -761,6 +770,26 @@ export function createClearing(host: HTMLElement): Clearing {
         ...(chosen.tetra !== undefined ? { tetra: shown.tetra, tetraAt: shown.tetraAt } : {}),
       };
     },
+  };
+  clearing.destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    cancelAnimationFrame(frame);
+    observer.disconnect();
+    const textures = new Set<THREE.Texture>([...letterTextures, ...tetraTextures.values()]);
+    scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      mesh.geometry?.dispose();
+      for (const m of ([] as THREE.Material[]).concat(mesh.material ?? [])) {
+        const map = (m as THREE.MeshStandardMaterial).map;
+        if (map) textures.add(map);
+        m.dispose();
+      }
+    });
+    textures.forEach((t) => t.dispose());
+    renderer.dispose();
+    renderer.forceContextLoss();
+    renderer.domElement.remove();
   };
   return clearing;
 }

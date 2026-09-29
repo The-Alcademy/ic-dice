@@ -2,6 +2,8 @@
 // line, and the tests. Nothing else in the app spells a School or a sub-room.
 
 export type SchoolLetter = 'R' | 'P' | 'S' | 'I' | 'W' | 'A';
+/** The Skhool a MetaMind throw lands on, by its Faculty's initial (the IC apps' name for it). */
+export type SkhoolLetter = SchoolLetter;
 
 export interface School {
   /** The Faculty's initial, as it is lettered on the cube. */

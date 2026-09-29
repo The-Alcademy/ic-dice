@@ -1,24 +1,42 @@
 {
   "name": "ic-dice",
   "version": "0.1.0",
+  "private": true,
   "description": "Invysible College: the dice roll in the Clearing — a MetaMind cube and a sub-stance tetrahedron, thrown with physics onto results chosen first.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "module": "./dist/ic-dice.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/ic-dice.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && npm run build:lib && npm run build:demo",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json",
+    "build:demo": "vite build",
     "preview": "vite preview",
     "test": "vitest run"
   },
-  "license": "UNLICENSED",
-  "type": "module",
+  "peerDependencies": {
+    "three": ">=0.160.0"
+  },
   "dependencies": {
-    "cannon-es": "^0.20.0",
-    "three": "^0.186.1"
+    "cannon-es": "^0.20.0"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
     "@types/three": "^0.186.0",
+    "three": "^0.186.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
-  },
-  "private": true
+  }
 }

@@ -26,6 +26,27 @@ describe("the Head Porter's threshold line", () => {
   });
 });
 
+describe("the threshold line's company", () => {
+  const W = () => schoolByLetter('W');
+  const P = () => subStanceByVerb('practise');
+  it('is Sam when no company is given, exactly as before', () => {
+    expect(thresholdLine(W(), P(), {})).toBe(thresholdLine(W(), P()));
+    expect(thresholdLine(W(), P())).toMatch(/^You stand in the Clearing with Sam, at the threshold/);
+  });
+  it('names whoever the student is with', () => {
+    expect(thresholdLine(W(), P(), { with: '  Ada  ' })).toBe(
+      'You stand in the Clearing with Ada, at the threshold of the Green School of PsychoTerranics, ' +
+        'where you will develop the Faculty of WEAVE — the ability to live woven into the web of life. ' +
+        'You will enter in the Forest, on the Ramble, the Hall of Wandering. And there you will practise.',
+    );
+  });
+  it('says alone when there is no one', () => {
+    for (const alone of [null, '', '   ']) {
+      expect(thresholdLine(W(), P(), { with: alone })).toMatch(/^You stand in the Clearing alone, at the threshold of the Green School/);
+    }
+  });
+});
+
 describe('the orientation line', () => {
   it('shows its open slots before a throw, and fills them after', () => {
     expect(orientationLine(null, null)).toBe(

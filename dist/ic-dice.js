@@ -959,8 +959,9 @@ function Ne(e, t = {}) {
 }
 //#endregion
 //#region src/porter.ts
-function Pe(e, t) {
-	return `You stand in the Clearing with Sam, at the threshold of the ${e.colour} School of ${e.domain}, where you will develop the Faculty of ${e.faculty} — the ability to ${e.gloss}. You will enter in the Forest, ${e.prep} ${e.hall}, ${e.title}. And there you will ${t.verb}.`;
+function Pe(e, t, n = {}) {
+	let r = n.with === void 0 ? "Sam" : (n.with ?? "").trim();
+	return `You stand in the Clearing ${r ? `with ${r}` : "alone"}, at the threshold of the ${e.colour} School of ${e.domain}, where you will develop the Faculty of ${e.faculty} — the ability to ${e.gloss}. You will enter in the Forest, ${e.prep} ${e.hall}, ${e.title}. And there you will ${t.verb}.`;
 }
 function Fe(e) {
 	return e.faculty;

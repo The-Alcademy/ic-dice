@@ -49,7 +49,7 @@ const tray = mountDiceTray(document.getElementById('tray')!, {
 
 // throw both dice, each onto a random face; or name a face, or leave a die out
 const { skhool, subStance } = await tray.roll({ skhool: 'random', subStance: 'random' });
-const line = thresholdLine(schoolByLetter(skhool!), subStance!);
+const line = thresholdLine(schoolByLetter(skhool!), subStance!, { with: 'Ada' }); // or { with: null } for alone; left out, it is Sam
 
 tray.setSound(false);
 tray.destroy(); // releases WebGL, audio and listeners, and empties the element

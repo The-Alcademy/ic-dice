@@ -3,10 +3,17 @@
 
 import type { School, SubStance } from './faces';
 
-/** "You stand in the Clearing with Sam, at the threshold of …" */
-export function thresholdLine(school: School, sub: SubStance): string {
+/** Who stands in the Clearing with the student. Left out: Sam, as always. `null` or empty: alone. */
+export interface Company {
+  with?: string | null;
+}
+
+/** "You stand in the Clearing with Sam, at the threshold of …" — or with someone else, or alone. */
+export function thresholdLine(school: School, sub: SubStance, company: Company = {}): string {
+  const name = company.with === undefined ? 'Sam' : (company.with ?? '').trim();
+  const standing = name ? `with ${name}` : 'alone';
   return (
-    `You stand in the Clearing with Sam, at the threshold of the ${school.colour} School of ${school.domain}, ` +
+    `You stand in the Clearing ${standing}, at the threshold of the ${school.colour} School of ${school.domain}, ` +
     `where you will develop the Faculty of ${school.faculty} — the ability to ${school.gloss}. ` +
     `You will enter in the Forest, ${school.prep} ${school.hall}, ${school.title}. ` +
     `And there you will ${sub.verb}.`

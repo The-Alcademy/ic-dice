@@ -15,6 +15,11 @@ export interface ShowPick {
     skhool?: SkhoolLetter;
     subStance?: SubStance;
 }
+/** Which dice to undecide. */
+export interface UnsetPick {
+    skhool?: true;
+    subStance?: true;
+}
 export interface DiceTrayOptions {
     /** Sound on or off to begin with. Default: on. */
     sound?: boolean;
@@ -33,6 +38,14 @@ export interface DiceTray {
      * chosen by the dice. Resolves with what the dice now show.
      */
     show(pick: ShowPick): Promise<RollResult>;
+    /**
+     * Undecide the named dice: each turns smoothly (at once under reduced
+     * motion) to stand balanced on a corner — the cube on a truncated corner,
+     * the tetrahedron on its point — showing nothing. No sound, no ripple, no
+     * onChosen. A later roll() or show() starts from there. Undeciding the
+     * Skhool takes its colour off the ripples: ink until another is thrown or set.
+     */
+    unset(pick: UnsetPick): Promise<void>;
     setSound(on: boolean): void;
     /** Release WebGL, audio and listeners, and empty `el` of everything the tray put there. */
     destroy(): void;

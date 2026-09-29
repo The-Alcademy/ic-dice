@@ -54,6 +54,9 @@ const line = thresholdLine(schoolByLetter(skhool!), subStance!, { with: 'Ada' })
 // the student set a face by hand: turn that die to it — no throw, no sound, no onChosen
 await tray.show({ skhool: 'R' });
 
+// the student reset a slot: that die stands balanced on a corner, undecided
+await tray.unset({ skhool: true });
+
 tray.setSound(false);
 tray.destroy(); // releases WebGL, audio and listeners, and empties the element
 ```
@@ -69,6 +72,11 @@ tray.destroy(); // releases WebGL, audio and listeners, and empties the element
   just clear of the Clearing. There is no throw, no sound and no ripple, and
   `onChosen` is not called, since the dice chose nothing. It takes a face, never
   `'random'`.
+- `unset()` undecides the named dice: each turns the same short, smooth way to
+  stand balanced on a corner — the cube on a truncated corner, the tetrahedron
+  on its point — showing nothing. No sound, no ripple, no `onChosen`. A later
+  `roll()` or `show()` starts from that pose. Undeciding the Skhool returns the
+  ripples to ink.
 - A landing ripple takes the colour of the School in the orientation, whether it
   was thrown or set by hand with `show()`, and is ink until there is one.
 - Motion follows `prefers-reduced-motion` unless `reducedMotion` is passed.

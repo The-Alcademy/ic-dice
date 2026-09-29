@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { type School, type SubStance } from './faces';
 type V3 = [number, number, number];
+export declare const CUBE_HALF = 0.74;
 /** Cube faces by index: the local normal of each, and which way is "up" on it. */
 export declare const CUBE_FACES: {
     n: V3;
@@ -44,6 +45,20 @@ export declare function cubeTurnTo(q: THREE.Quaternion, labels: number[], chosen
 export declare function tetraTurnTo(q: THREE.Quaternion, labels: number[], chosen: number): THREE.Quaternion;
 /** How high the tetrahedron's centre sits when it rests on the floor in orientation `q`. */
 export declare function tetraRestHeight(q: THREE.Quaternion): number;
+/**
+ * Undecided: the cube balanced on a truncated corner. The corner lowest in `q`
+ * turns straight down, by the smallest rotation; no face is then up, so the die
+ * shows no School.
+ */
+export declare function cubeUnsetTo(q: THREE.Quaternion): THREE.Quaternion;
+/** How high the cube's centre sits when it stands on a corner facet: that facet's distance from the centre. */
+export declare const CUBE_CORNER_HEIGHT: number;
+/** Undecided: the tetrahedron balanced on its point. The vertex lowest in `q` turns straight down; a face is then up, so it shows no sub-stance. */
+export declare function tetraUnsetTo(q: THREE.Quaternion): THREE.Quaternion;
+/** How high the tetrahedron's centre sits when it stands on its point: the distance to a vertex. */
+export declare const TETRA_POINT_HEIGHT: number;
+/** The lowest point of a die in orientation `q` with its centre at height `y`: 0 when it stands on the floor. */
+export declare function lowestPoint(which: 'cube' | 'tetra', q: THREE.Quaternion, y: number): number;
 /** What a turned die shows: for the tests, and for reading back after a turn. */
 export declare function cubeShows(q: THREE.Quaternion, labels: number[]): {
     label: number;
@@ -87,6 +102,15 @@ export interface Clearing {
         cube?: number;
         tetra?: number;
     }, ms: number): Promise<Landing>;
+    /**
+     * Undecide the named dice: turn each to stand balanced on a corner (the cube
+     * on a truncated corner, the tetrahedron on its point), showing nothing. The
+     * same short, smooth motion as turn(): no sound, no landing. `ms` 0 is at once.
+     */
+    unset(which: {
+        cube?: boolean;
+        tetra?: boolean;
+    }, ms: number): Promise<void>;
     onImpact: (impact: Impact) => void;
     onLand: () => void;
     /** Stop drawing, and release the WebGL context and every GPU resource. */

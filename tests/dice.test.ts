@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CUBE, TETRA } from '../src/faces';
-import { CUBE_BASE, CUBE_FACES, cubeLabelling, tetraLabelling, cubeTurnTo, tetraTurnTo, tetraRestHeight, cubeShows, tetraShows } from '../src/dice';
+import { CUBE_BASE, CUBE_FACES, cubeLabelling, tetraLabelling, cubeTurnTo, tetraTurnTo, tetraRestHeight, cubeShows, tetraShows, cubeUnsetTo, tetraUnsetTo, CUBE_CORNER_HEIGHT, TETRA_POINT_HEIGHT, lowestPoint, simulate, CUBE_HALF } from '../src/dice';
 
 const letter = (i: number) => CUBE[i].letter;
 /** Faces 0/1, 2/3 and 4/5 are opposite (+x/−x, +y/−y, +z/−z). */
@@ -126,5 +126,82 @@ describe('turning a die by hand to a face the student set', () => {
       expect(tetraRestHeight(tetraTurnTo(randomQ(), labels, n % 4))).toBeCloseTo(inradius, 9);
     }
     expect(inradius).toBeGreaterThan(0);
+  });
+});
+
+describe('undeciding a die: balanced on a corner, showing nothing', () => {
+  let seed = 777;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const randomQ = () => {
+    const [u1, u2, u3] = [rand(), rand(), rand()];
+    return new THREE.Quaternion(
+      Math.sqrt(1 - u1) * Math.sin(2 * Math.PI * u2), Math.sqrt(1 - u1) * Math.cos(2 * Math.PI * u2),
+      Math.sqrt(u1) * Math.sin(2 * Math.PI * u3), Math.sqrt(u1) * Math.cos(2 * Math.PI * u3),
+    );
+  };
+  const DOWN = new THREE.Vector3(0, -1, 0);
+  const corners = [-1, 1].flatMap((x) => [-1, 1].flatMap((y) => [-1, 1].map((z) => new THREE.Vector3(x, y, z).normalize())));
+
+  it('stands the cube on a truncated corner, on the floor, with no face up', () => {
+    for (let n = 0; n < 100; n++) {
+      const q = cubeUnsetTo(randomQ());
+      const lowest = Math.min(...corners.map((c) => c.clone().applyQuaternion(q).y));
+      expect(lowest).toBeCloseTo(-1, 9);                                    // a corner points straight down
+      expect(lowestPoint('cube', q, CUBE_CORNER_HEIGHT)).toBeCloseTo(0, 9); // and its facet rests on the floor
+      expect(cubeShows(q, [...CUBE_BASE]).flat).toBeCloseTo(1 / Math.sqrt(3), 9); // no face is up
+    }
+  });
+
+  it('stands the tetrahedron on its point, on the floor, with a face up and no apex', () => {
+    for (let n = 0; n < 100; n++) {
+      const q = tetraUnsetTo(randomQ());
+      expect(lowestPoint('tetra', q, TETRA_POINT_HEIGHT)).toBeCloseTo(0, 9);
+      expect(tetraShows(q, [0, 1, 2, 3]).flat).toBeCloseTo(1 / 3, 9);       // no vertex is up: nothing to read
+    }
+  });
+
+  it('turns by the smallest rotation, and not at all when already balanced', () => {
+    for (let n = 0; n < 50; n++) {
+      const q = randomQ();
+      const low = corners.map((c) => c.clone().applyQuaternion(q)).sort((a, b) => a.y - b.y)[0];
+      expect(q.angleTo(cubeUnsetTo(q))).toBeCloseTo(low.angleTo(DOWN), 9);
+      const once = cubeUnsetTo(q);
+      expect(once.angleTo(cubeUnsetTo(once))).toBeCloseTo(0, 6); // an angle near 0 from acos is good to ~1e-8
+    }
+  });
+
+  it('lets show() start from there: any face turns up and the die rests on it', () => {
+    for (let n = 0; n < 50; n++) {
+      const labels = cubeLabelling(n % 6, (n * 5) % 6);
+      const chosen = n % 6;
+      const q = cubeTurnTo(cubeUnsetTo(randomQ()), labels, chosen);
+      expect(cubeShows(q, labels)).toEqual({ label: chosen, flat: expect.closeTo(1, 9) });
+      expect(lowestPoint('cube', q, CUBE_HALF)).toBeCloseTo(0, 9);
+      const t = tetraTurnTo(tetraUnsetTo(randomQ()), [0, 1, 2, 3], n % 4);
+      expect(tetraShows(t, [0, 1, 2, 3])).toEqual({ label: n % 4, flat: expect.closeTo(1, 9) });
+      expect(lowestPoint('tetra', t, tetraRestHeight(t))).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('lets roll() start from there: the thrown die settles squarely, and the balanced one stays put', () => {
+    const cubeQ = cubeUnsetTo(randomQ());
+    const cube = { p: new THREE.Vector3(-0.9, CUBE_CORNER_HEIGHT, 0.4), q: cubeQ };
+    let settled = 0;
+    for (let n = 0; n < 6; n++) {
+      const sim = simulate(['tetra'], { cube });
+      if (sim.settled) settled++;
+      expect(sim.final[0].q.angleTo(cubeQ)).toBeCloseTo(0, 9);               // the undecided cube did not move
+      expect(sim.final[0].p.distanceTo(cube.p)).toBeCloseTo(0, 9);
+    }
+    expect(settled).toBeGreaterThan(0);
+    const tetraQ = tetraUnsetTo(randomQ());
+    const tetra = { p: new THREE.Vector3(1, TETRA_POINT_HEIGHT, 0), q: tetraQ };
+    let square = 0;
+    for (let n = 0; n < 12 && !square; n++) {
+      const sim = simulate(['cube'], { tetra });
+      if (sim.settled && cubeShows(sim.final[0].q, [...CUBE_BASE]).flat > 0.97) square++;
+      expect(sim.final[1].q.angleTo(tetraQ)).toBeCloseTo(0, 9);
+    }
+    expect(square).toBe(1);
   });
 });

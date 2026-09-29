@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as pkg from '../src/index';
-import type { DiceTray, RollPick, ShowPick, SkhoolLetter, SubStance } from '../src/index';
+import type { DiceTray, RollPick, ShowPick, SkhoolLetter, SubStance, UnsetPick } from '../src/index';
 
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const at = (p: string) => new URL(`../${p.replace(/^\.\//, '')}`, import.meta.url);
@@ -60,6 +60,23 @@ describe('the roll pick', () => {
     const given: RollPick = { skhool: 'W', subStance: pkg.TETRA[1] };
     expect(both.skhool).toBe('random');
     expect((given.subStance as SubStance).room).toBe('Chamber');
+  });
+});
+
+describe('undeciding a die', () => {
+  it('names which dice to undecide, and nothing else', () => {
+    // checked by tsc as part of npm run build; a no-op at run time
+    expectTypeOf<UnsetPick>().toEqualTypeOf<{ skhool?: true; subStance?: true }>();
+    expectTypeOf<DiceTray['unset']>().parameter(0).toEqualTypeOf<UnsetPick>();
+    expectTypeOf<DiceTray['unset']>().returns.toEqualTypeOf<Promise<void>>();
+  });
+
+  it('takes the Skhool off the ripples: ink again until one is thrown or set', () => {
+    const { CUBE, INK, nextSchool, rippleColour } = pkg;
+    // unset() sets the orientation's School to null; the rule it hands to the ripple
+    const set = nextSchool(null, CUBE.findIndex((s) => s.letter === 'W'));
+    expect(rippleColour(set)).toBe('#4E8A3A');
+    expect(rippleColour(null)).toBe(INK);
   });
 });
 

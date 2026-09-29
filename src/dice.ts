@@ -26,7 +26,7 @@ import { CUBE, TETRA, INK, type School, type SubStance, type SubRoomIcon } from 
 
 type V3 = [number, number, number];
 
-const CUBE_HALF = 0.74;
+export const CUBE_HALF = 0.74;
 /** How far along each edge the corners are cut. */
 const CUBE_CUT = 0.18;
 const TETRA_SCALE = 0.78;
@@ -585,6 +585,47 @@ export function tetraRestHeight(q: THREE.Quaternion): number {
   return -Math.min(...TETRA_VERTS.map((v) => new THREE.Vector3(...v).applyQuaternion(q).y));
 }
 
+const DOWN = new THREE.Vector3(0, -1, 0);
+/** The cube's eight corners, as directions from its centre. */
+const CORNERS: V3[] = [];
+for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) CORNERS.push(norm([sx, sy, sz]));
+
+/**
+ * Undecided: the cube balanced on a truncated corner. The corner lowest in `q`
+ * turns straight down, by the smallest rotation; no face is then up, so the die
+ * shows no School.
+ */
+export function cubeUnsetTo(q: THREE.Quaternion): THREE.Quaternion {
+  let low = new THREE.Vector3(0, Infinity, 0);
+  for (const c of CORNERS) {
+    const d = new THREE.Vector3(...c).applyQuaternion(q);
+    if (d.y < low.y) low = d;
+  }
+  return new THREE.Quaternion().setFromUnitVectors(low, DOWN).multiply(q);
+}
+
+/** How high the cube's centre sits when it stands on a corner facet: that facet's distance from the centre. */
+export const CUBE_CORNER_HEIGHT = (3 * CUBE_HALF - CUBE_CUT) / Math.sqrt(3);
+
+/** Undecided: the tetrahedron balanced on its point. The vertex lowest in `q` turns straight down; a face is then up, so it shows no sub-stance. */
+export function tetraUnsetTo(q: THREE.Quaternion): THREE.Quaternion {
+  let low = new THREE.Vector3(0, Infinity, 0);
+  for (const v of TETRA_VERTS) {
+    const d = new THREE.Vector3(...v).normalize().applyQuaternion(q);
+    if (d.y < low.y) low = d;
+  }
+  return new THREE.Quaternion().setFromUnitVectors(low, DOWN).multiply(q);
+}
+
+/** How high the tetrahedron's centre sits when it stands on its point: the distance to a vertex. */
+export const TETRA_POINT_HEIGHT = Math.hypot(...TETRA_VERTS[0]);
+
+/** The lowest point of a die in orientation `q` with its centre at height `y`: 0 when it stands on the floor. */
+export function lowestPoint(which: 'cube' | 'tetra', q: THREE.Quaternion, y: number): number {
+  const points = which === 'cube' ? truncatedCube().vertices : TETRA_VERTS;
+  return y + Math.min(...points.map((p) => new THREE.Vector3(...p).applyQuaternion(q).y));
+}
+
 /** What a turned die shows: for the tests, and for reading back after a turn. */
 export function cubeShows(q: THREE.Quaternion, labels: number[]): { label: number; flat: number } {
   const up = cubeUp(q);
@@ -617,6 +658,12 @@ export interface Clearing {
    * `ms` 0 turns at once. Resolves when they are still.
    */
   turn(chosen: { cube?: number; tetra?: number }, ms: number): Promise<Landing>;
+  /**
+   * Undecide the named dice: turn each to stand balanced on a corner (the cube
+   * on a truncated corner, the tetrahedron on its point), showing nothing. The
+   * same short, smooth motion as turn(): no sound, no landing. `ms` 0 is at once.
+   */
+  unset(which: { cube?: boolean; tetra?: boolean }, ms: number): Promise<void>;
   onImpact: (impact: Impact) => void;
   onLand: () => void;
   /** Stop drawing, and release the WebGL context and every GPU resource. */
@@ -741,6 +788,46 @@ export function createClearing(host: HTMLElement): Clearing {
     };
   };
 
+  /**
+   * Move dice in place to new poses: a short eased rotation, lifting by what the
+   * corners need to clear the floor. No physics, no impacts, no landing. `ms` 0
+   * moves at once. A die already in its pose does not move.
+   */
+  const glide = async (targets: { w: Which; q1: THREE.Quaternion; y1: number }[], ms: number) => {
+    if (playing) throw new Error('The dice are already rolling');
+    playing = true;
+    try {
+      const moves = targets
+        .map((t) => ({ ...t, mesh: meshes[t.w], q0: meshes[t.w].quaternion.clone(), y0: meshes[t.w].position.y }))
+        .filter((m) => m.q0.angleTo(m.q1) > 1e-3 || Math.abs(m.y0 - m.y1) > 1e-4);
+      const LIFT = { cube: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, tetra: 0.2 };
+      const pose = (k: number) => {
+        const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; // ease in and out
+        for (const m of moves) {
+          m.mesh.quaternion.copy(m.q0).slerp(m.q1, e);
+          m.mesh.position.y = m.y0 + (m.y1 - m.y0) * e + LIFT[m.w] * Math.sin(Math.PI * e);
+        }
+      };
+      if (moves.length && ms > 0) {
+        await new Promise<void>((done) => {
+          const start = performance.now();
+          const tick = () => {
+            const k = Math.min(1, (performance.now() - start) / ms);
+            pose(k);
+            if (k >= 1 || destroyed) done();
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        });
+      }
+      if (destroyed) throw new Error('The tray was destroyed during the turn');
+      pose(1);
+      render();
+    } finally {
+      playing = false;
+    }
+  };
+
   const clearing: Clearing = {
     onImpact: () => {},
     onLand: () => {},
@@ -816,52 +903,35 @@ export function createClearing(host: HTMLElement): Clearing {
     },
 
     async turn(chosen, ms) {
-      if (playing) throw new Error('The dice are already rolling');
-      playing = true;
-      try {
-        const moves = (['cube', 'tetra'] as Which[])
+      await glide(
+        (['cube', 'tetra'] as Which[])
           .filter((w) => chosen[w] !== undefined)
           .map((w) => {
-            const mesh = meshes[w];
-            const q0 = mesh.quaternion.clone();
-            const q1 = w === 'cube' ? cubeTurnTo(q0, cubeLabels, chosen.cube!) : tetraTurnTo(q0, tetraLabels, chosen.tetra!);
-            const y0 = mesh.position.y;
-            const y1 = w === 'cube' ? CUBE_HALF : tetraRestHeight(q1);
-            return { w, mesh, q0, q1, y0, y1, turns: q0.angleTo(q1) > 1e-3 };
-          })
-          .filter((m) => m.turns);
-        // lift by what the corners need to clear the floor while the die turns
-        const LIFT = { cube: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, tetra: 0.2 };
-        const pose = (k: number) => {
-          const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; // ease in and out
-          for (const m of moves) {
-            m.mesh.quaternion.copy(m.q0).slerp(m.q1, e);
-            m.mesh.position.y = m.y0 + (m.y1 - m.y0) * e + LIFT[m.w] * Math.sin(Math.PI * e);
-          }
-        };
-        if (moves.length && ms > 0) {
-          await new Promise<void>((done) => {
-            const start = performance.now();
-            const tick = () => {
-              const k = Math.min(1, (performance.now() - start) / ms);
-              pose(k);
-              if (k >= 1 || destroyed) done();
-              else requestAnimationFrame(tick);
-            };
-            requestAnimationFrame(tick);
-          });
-        }
-        if (destroyed) throw new Error('The tray was destroyed during the turn');
-        pose(1);
-        render();
-      } finally {
-        playing = false;
-      }
+            const q = meshes[w].quaternion;
+            const q1 = w === 'cube' ? cubeTurnTo(q, cubeLabels, chosen.cube!) : tetraTurnTo(q, tetraLabels, chosen.tetra!);
+            return { w, q1, y1: w === 'cube' ? CUBE_HALF : tetraRestHeight(q1) };
+          }),
+        ms,
+      );
       const shown = read();
       return {
         ...(chosen.cube !== undefined ? { cube: shown.cube, cubeAt: shown.cubeAt } : {}),
         ...(chosen.tetra !== undefined ? { tetra: shown.tetra, tetraAt: shown.tetraAt } : {}),
       };
+    },
+
+    async unset(which, ms) {
+      await glide(
+        (['cube', 'tetra'] as Which[])
+          .filter((w) => which[w])
+          .map((w) => {
+            const q = meshes[w].quaternion;
+            return w === 'cube'
+              ? { w, q1: cubeUnsetTo(q), y1: CUBE_CORNER_HEIGHT }
+              : { w, q1: tetraUnsetTo(q), y1: TETRA_POINT_HEIGHT };
+          }),
+        ms,
+      );
     },
 
     place(chosen) {

@@ -92,7 +92,8 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   const play = (set: keyof typeof SOUNDS, volume: number) => {
     if (!soundOn || destroyed) return;
     const now = performance.now();
-    if (now - lastSound < 35) return; // a burst of contacts is one clack
+    // a burst of contacts is one clack; the landing knock is never merged away
+    if (set !== 'land' && now - lastSound < 35) return;
     lastSound = now;
     const files = SOUNDS[set];
     const audio = new Audio(files[chooseIndex(files.length)]);

@@ -359,7 +359,16 @@ export function tetraLabelling(up: number, chosen: number): number[] {
 
 const STEP = 1 / 120;
 const RECORD_EVERY = 2; // 60 recorded frames a second
-const MAX_SECONDS = 7;
+/* A throw lasts about 4 s at most. A die that has come down to the Clearing
+   and is barely moving is damped hard, so it settles instead of gliding; from
+   SETTLE_BY every thrown die is; and a throw not truly at rest by MAX_SECONDS
+   is thrown again, unseen, so the playback never snaps a moving die to rest. */
+const MAX_SECONDS = 4;
+const SETTLE_BY = 3;
+const DAMPING = { linear: 0.25, angular: 0.15 };
+const SETTLING = { linear: 0.9, angular: 0.9 };
+/** Close to rest: down on the Clearing, slower than this, turning slower than this. */
+const NEAR_REST = { speed: 1.2, spin: 4, fall: 0.3 };
 
 export interface Impact {
   t: number;
@@ -377,6 +386,8 @@ interface Simulation {
   impacts: Impact[];
   duration: number;
   final: Pose[];
+  /** Every thrown die was truly still when the recording ended. */
+  settled: boolean;
 }
 
 type Which = 'cube' | 'tetra';
@@ -404,7 +415,7 @@ function unit(): number {
   return a[0] / 2 ** 32;
 }
 
-function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation {
+export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation {
   const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -30, 0) });
   world.allowSleep = true;
   const dieMat = new CANNON.Material('die');
@@ -436,8 +447,8 @@ function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simul
     const body = bodies[which];
     body.sleepSpeedLimit = 0.08;
     body.sleepTimeLimit = 0.25;
-    body.linearDamping = 0.25;
-    body.angularDamping = 0.15;
+    body.linearDamping = DAMPING.linear;
+    body.angularDamping = DAMPING.angular;
     if (thrown.includes(which)) {
       // in from the rim, towards the middle, tumbling
       const a = base + i * 0.5;
@@ -475,6 +486,16 @@ function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simul
         record[i].push(b.position.x, b.position.y, b.position.z, b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
       });
     }
+    for (const w of thrown) {
+      const b = bodies[w];
+      const near =
+        Math.abs(b.velocity.y) < NEAR_REST.fall &&
+        b.velocity.length() < NEAR_REST.speed &&
+        b.angularVelocity.length() < NEAR_REST.spin;
+      const settle = near || step * STEP >= SETTLE_BY;
+      b.linearDamping = settle ? SETTLING.linear : DAMPING.linear;
+      b.angularDamping = settle ? SETTLING.angular : DAMPING.angular;
+    }
     world.step(STEP);
     step++;
     if (step > 30 && !moving()) break;
@@ -507,7 +528,10 @@ function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simul
   // collisions within a single step are one impact; keep the hardest
   impacts.sort((a, b) => a.t - b.t);
   const merged = impacts.filter((x, i) => x.t <= ends && (i === 0 || x.t - impacts[i - 1].t > 0.03 || x.kind !== impacts[i - 1].kind));
-  return { frames: record.map((r) => Float32Array.from(r)), impacts: merged, duration: ends, final };
+  const settled = thrown.every(
+    (w) => bodies[w].sleepState === CANNON.Body.SLEEPING || (bodies[w].velocity.length() < 0.02 && bodies[w].angularVelocity.length() < 0.05),
+  );
+  return { frames: record.map((r) => Float32Array.from(r)), impacts: merged, duration: ends, final, settled };
 }
 
 // ---------------------------------------------------------------- reading --
@@ -692,7 +716,7 @@ export function createClearing(host: HTMLElement): Clearing {
         const squarely =
           (!thrown.includes('cube') || cubeUp(s.final[0].q).flat > 0.97) &&
           (!thrown.includes('tetra') || tetraUp(s.final[1].q).flat > 0.97);
-        if (squarely) sim = s;
+        if (squarely && s.settled) sim = s;
       }
       if (!sim) {
         playing = false;

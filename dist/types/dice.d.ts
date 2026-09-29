@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { type School, type SubStance } from './faces';
 type V3 = [number, number, number];
 /** Cube faces by index: the local normal of each, and which way is "up" on it. */
@@ -19,6 +20,20 @@ export interface Impact {
     speed: number;
     kind: 'die' | 'floor';
 }
+interface Pose {
+    p: THREE.Vector3;
+    q: THREE.Quaternion;
+}
+interface Simulation {
+    frames: Float32Array[];
+    impacts: Impact[];
+    duration: number;
+    final: Pose[];
+    /** Every thrown die was truly still when the recording ended. */
+    settled: boolean;
+}
+type Which = 'cube' | 'tetra';
+export declare function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation;
 export interface Landing {
     /** Index into CUBE / TETRA, as read off the die at rest. */
     cube?: number;

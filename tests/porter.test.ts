@@ -32,7 +32,12 @@ describe('the orientation line', () => {
       'My stance towards the Clearing is that of a Reader in the Library of Thyngs, through [Skhool], and I am [sub-stance], with Sam.',
     );
     expect(orientationLine(schoolByLetter('W'), subStanceByVerb('practise'))).toBe(
-      'My stance towards the Clearing is that of a Reader in the Library of Thyngs, through the Green School, and I am practising it, with Sam.',
+      'My stance towards the Clearing is that of a Reader in the Library of Thyngs, through WEAVE, and I am practising it, with Sam.',
     );
+  });
+
+  it('names the Faculty in the Skhool slot: through WEAVE', () => {
+    expect(orientationLine(schoolByLetter('W'), null)).toContain('through WEAVE,');
+    expect(orientationLine(schoolByLetter('W'), null)).not.toContain('Green School');
   });
 });

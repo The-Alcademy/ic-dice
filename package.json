@@ -11,7 +11,6 @@
   "license": "UNLICENSED",
   "type": "module",
   "dependencies": {
-    "@3d-dice/dice-box-threejs": "^0.0.12",
     "cannon-es": "^0.20.0",
     "three": "^0.186.1"
   },

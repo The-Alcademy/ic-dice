@@ -15,7 +15,8 @@ export function thresholdLine(school: School, sub: SubStance): string {
 
 /** What each slot of the orientation line reads once its die has landed. */
 export function skhoolSlot(school: School): string {
-  return `the ${school.colour} School`;
+  // the Faculty's name, as the Daybook writes it: "through WEAVE"
+  return school.faculty;
 }
 
 export function subStanceSlot(sub: SubStance): string {

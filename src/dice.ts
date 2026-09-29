@@ -33,7 +33,7 @@ const TETRA_SCALE = 0.78;
 const CLEARING_RADIUS = 5.2;
 
 /** Cube faces by index: the local normal of each, and which way is "up" on it. */
-const CUBE_FACES: { n: V3; up: V3 }[] = [
+export const CUBE_FACES: { n: V3; up: V3 }[] = [
   { n: [1, 0, 0], up: [0, 1, 0] },
   { n: [-1, 0, 0], up: [0, 1, 0] },
   { n: [0, 1, 0], up: [0, 0, -1] },
@@ -46,7 +46,7 @@ const CUBE_FACES: { n: V3; up: V3 }[] = [
  * The cube's base labelling: which School (index into CUBE) is on which face.
  * Opposite spokes of the mandala are opposite faces: R/I, P/W, S/A.
  */
-const CUBE_BASE = [1, 4, 0, 3, 2, 5]; // +x P, -x W, +y R, -y I, +z S, -z A
+export const CUBE_BASE = [1, 4, 0, 3, 2, 5]; // +x P, -x W, +y R, -y I, +z S, -z A
 
 const TETRA_VERTS: V3[] = [
   [1, 1, 1],
@@ -332,8 +332,8 @@ const CUBE_ROTATIONS: number[][][] = (() => {
 const apply = (m: number[][], v: V3): V3 => [dot(m[0] as V3, v), dot(m[1] as V3, v), dot(m[2] as V3, v)];
 const faceOf = (n: V3) => CUBE_FACES.findIndex((f) => dot(f.n, n) > 0.5);
 
-/** A labelling of the cube's faces that puts School `chosen` on face `up`. */
-function cubeLabelling(up: number, chosen: number): number[] {
+/** A labelling of the cube's faces that puts School `chosen` on face `up`: the base labelling turned by one of the cube's 24 rotations, never permuted freely, so R/I, P/W and S/A stay opposite on every throw. */
+export function cubeLabelling(up: number, chosen: number): number[] {
   const from = CUBE_BASE.indexOf(chosen);
   const rotation = CUBE_ROTATIONS.find((m) => faceOf(apply(m, CUBE_FACES[from].n)) === up)!;
   const labels = new Array<number>(6);
@@ -344,7 +344,7 @@ function cubeLabelling(up: number, chosen: number): number[] {
 }
 
 /** A labelling of the tetrahedron's vertices that puts sub-stance `chosen` on vertex `up`: a half-turn about an edge axis, so an even permutation — a rotation, not a mirror image. */
-function tetraLabelling(up: number, chosen: number): number[] {
+export function tetraLabelling(up: number, chosen: number): number[] {
   const labels = [0, 1, 2, 3];
   if (up === chosen) return labels;
   const [x, y] = [0, 1, 2, 3].filter((i) => i !== up && i !== chosen);

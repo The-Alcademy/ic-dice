@@ -1,0 +1,25 @@
+{
+  "name": "ic-dice",
+  "version": "0.1.0",
+  "description": "Invysible College: the dice roll in the Clearing — a MetaMind cube and a sub-stance tetrahedron, thrown with physics onto results chosen first.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@3d-dice/dice-box-threejs": "^0.0.12",
+    "cannon-es": "^0.20.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  },
+  "private": true
+}

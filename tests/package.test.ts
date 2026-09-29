@@ -62,3 +62,25 @@ describe('the roll pick', () => {
     expect((given.subStance as SubStance).room).toBe('Chamber');
   });
 });
+
+describe('the landing ripple', () => {
+  const { CUBE, INK, nextSchool, rippleColour } = pkg;
+  const at = (letter: string) => CUBE.findIndex((s) => s.letter === letter);
+
+  it('is ink until a School is in the orientation', () => {
+    expect(rippleColour(null)).toBe(INK);
+    expect(rippleColour(nextSchool(null, undefined))).toBe(INK); // the tetrahedron alone sets no School
+  });
+
+  it('takes the School in the orientation, whether thrown or set by hand with show()', () => {
+    // set ALIGN by hand, then throw only the tetrahedron: its ripple is ALIGN's blue
+    let school = nextSchool(null, at('A'));
+    school = nextSchool(school, undefined);
+    expect(rippleColour(school)).toBe('#2E64A0');
+    // throw the cube onto PILOT: from then on it is PILOT's red
+    school = nextSchool(school, at('P'));
+    expect(rippleColour(nextSchool(school, undefined))).toBe('#B23A2E');
+    // set REBIS by hand after that: REBIS's purple
+    expect(rippleColour(nextSchool(school, at('R')))).toBe('#6A3C8C');
+  });
+});

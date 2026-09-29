@@ -10,7 +10,7 @@
 // copies no files. The one thing it adds outside `el` is that font, to
 // document.fonts, and destroy() takes it away again.
 
-import { CUBE, TETRA, INK, type SkhoolLetter, type SubStance } from './faces';
+import { CUBE, TETRA, INK, type School, type SkhoolLetter, type SubStance } from './faces';
 import { createClearing, type Clearing, type Impact, type Landing } from './dice';
 import jostUrl from './fonts/jost-variable-latin.woff2?url';
 
@@ -96,6 +96,20 @@ function releaseJost() {
   }
 }
 
+/**
+ * The School now in the orientation, after the cube showed `cube` (an index into
+ * CUBE) — whether it was thrown or set by hand and turned with show(). A step
+ * that leaves the cube alone (`cube` undefined) keeps the School there was.
+ */
+export function nextSchool(current: School | null, cube: number | undefined): School | null {
+  return cube === undefined ? current : CUBE[cube];
+}
+
+/** A landing ripple is the colour of the School in the orientation; ink until there is one. */
+export function rippleColour(school: School | null): string {
+  return school?.hex ?? INK;
+}
+
 /** How long a die takes to turn to a face set by hand. */
 const SHOW_MS = 450;
 
@@ -136,7 +150,8 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
     clearing.onLand = () => play('land', 0.8);
   });
 
-  let lastSchool: (typeof CUBE)[number] | null = null;
+  /** The School in the orientation, thrown or set by hand: it colours every landing ripple. */
+  let school: School | null = null;
 
   const ripple = (at: { x: number; y: number }, colour: string) => {
     if (isReduced()) return;
@@ -197,10 +212,10 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
 
       // the landing: a ripple in the landed School's colour
       if (chosen.cube !== undefined) {
-        lastSchool = CUBE[chosen.cube];
-        if (landed.cubeAt) ripple(landed.cubeAt, lastSchool.hex);
+        school = nextSchool(school, chosen.cube);
+        if (landed.cubeAt) ripple(landed.cubeAt, rippleColour(school));
       }
-      if (chosen.tetra !== undefined && landed.tetraAt) ripple(landed.tetraAt, lastSchool?.hex ?? INK);
+      if (chosen.tetra !== undefined && landed.tetraAt) ripple(landed.tetraAt, rippleColour(school));
       return result;
     },
 
@@ -219,6 +234,8 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
         if (chosen.tetra < 0) throw new Error(`No sub-stance ${sub.room} on the tetrahedron`);
       }
       const shown = await clearing.turn(chosen, isReduced() ? 0 : SHOW_MS);
+      // a School set by hand is the orientation's School too: the next ripple takes its colour
+      school = nextSchool(school, shown.cube);
       return {
         ...(shown.cube !== undefined ? { skhool: CUBE[shown.cube].letter } : {}),
         ...(shown.tetra !== undefined ? { subStance: TETRA[shown.tetra] } : {}),

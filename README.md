@@ -69,6 +69,8 @@ tray.destroy(); // releases WebGL, audio and listeners, and empties the element
   just clear of the Clearing. There is no throw, no sound and no ripple, and
   `onChosen` is not called, since the dice chose nothing. It takes a face, never
   `'random'`.
+- A landing ripple takes the colour of the School in the orientation, whether it
+  was thrown or set by hand with `show()`, and is ink until there is one.
 - Motion follows `prefers-reduced-motion` unless `reducedMotion` is passed.
 - The one thing it adds outside its element is the Jost face, in
   `document.fonts`; the last tray's `destroy()` removes it.

@@ -1,4 +1,4 @@
-import { type SkhoolLetter, type SubStance } from './faces';
+import { type School, type SkhoolLetter, type SubStance } from './faces';
 export type { SkhoolLetter, SubStance };
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
@@ -39,4 +39,12 @@ export interface DiceTray {
 }
 /** An index in [0, n), from the platform's CSPRNG, without modulo bias. */
 export declare function chooseIndex(n: number): number;
+/**
+ * The School now in the orientation, after the cube showed `cube` (an index into
+ * CUBE) — whether it was thrown or set by hand and turned with show(). A step
+ * that leaves the cube alone (`cube` undefined) keeps the School there was.
+ */
+export declare function nextSchool(current: School | null, cube: number | undefined): School | null;
+/** A landing ripple is the colour of the School in the orientation; ink until there is one. */
+export declare function rippleColour(school: School | null): string;
 export declare function mountDiceTray(el: HTMLElement, opts?: DiceTrayOptions): DiceTray;

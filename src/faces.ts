@@ -37,7 +37,7 @@ export interface School {
 export const CUBE: readonly School[] = [
   {
     facultyLetter: 'R', faculty: 'REBIS', colour: 'Purple', core: '#a879e0', glow: '#c6a3f0', deep: '#8441d3', domain: 'PsychoAlchemy',
-    gloss: 'transmute belief — to hold opposites until a new whole forms',
+    gloss: 'transmute belief — hold opposites until a new whole forms',
     hall: 'the Looking Glass', title: 'the Hall of Reflection',
     prep: 'at', // PROVISIONAL
   },
@@ -67,7 +67,7 @@ export const CUBE: readonly School[] = [
   },
   {
     facultyLetter: 'A', faculty: 'ALIGN', colour: 'Blue', core: '#5285c4', glow: '#82a8dc', deep: '#3869a5', domain: 'PsychoTechnics',
-    gloss: 'test reality and name what is true',
+    gloss: "test reality and name what's true",
     hall: 'the Anomaly', title: 'the Hall of Asking',
     prep: 'at', // PROVISIONAL
   },

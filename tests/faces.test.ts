@@ -49,6 +49,18 @@ describe('the School colours', () => {
     ]);
   });
 
+  it("glosses each Faculty exactly as the College's faculties table does (checked 30 September 2026)", () => {
+    // the canon: public.faculties.gloss. "The ability to …" completes each.
+    expect(CUBE.map((s) => [s.facultyLetter, s.gloss])).toEqual([
+      ['R', 'transmute belief — hold opposites until a new whole forms'],
+      ['P', 'steer your own consciousness'],
+      ['S', 'tend and restore wellbeing'],
+      ['I', 'play in earnest — to improvise'],
+      ['W', 'live woven into the web of life'],
+      ['A', "test reality and name what's true"],
+    ]);
+  });
+
   it('has no field called just "letter" or "hex": the letter is the Faculty’s, the colours are named for their use', () => {
     for (const s of CUBE) {
       expect(s).not.toHaveProperty('letter');

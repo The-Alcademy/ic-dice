@@ -8,7 +8,7 @@ var e = [
 		glow: "#c6a3f0",
 		deep: "#8441d3",
 		domain: "PsychoAlchemy",
-		gloss: "transmute belief — to hold opposites until a new whole forms",
+		gloss: "transmute belief — hold opposites until a new whole forms",
 		hall: "the Looking Glass",
 		title: "the Hall of Reflection",
 		prep: "at"
@@ -73,7 +73,7 @@ var e = [
 		glow: "#82a8dc",
 		deep: "#3869a5",
 		domain: "PsychoTechnics",
-		gloss: "test reality and name what is true",
+		gloss: "test reality and name what's true",
 		hall: "the Anomaly",
 		title: "the Hall of Asking",
 		prep: "at"

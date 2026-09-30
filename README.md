@@ -104,7 +104,7 @@ Schools and sub-stances without loading the tray:
 
 ```ts
 import { CUBE, TETRA, schoolByLetter } from 'ic-dice/faces';
-schoolByLetter('A').gloss; // "test reality and name what is true"
+schoolByLetter('A').gloss; // "test reality and name what's true"
 ```
 
 ## Files

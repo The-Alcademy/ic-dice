@@ -88,6 +88,28 @@ tray.destroy(); // releases WebGL, audio and listeners, and empties the element
   `core`. The tray does not follow `prefers-color-scheme` itself; a host that
   does calls `setPaper()` when it changes.
 - Motion follows `prefers-reduced-motion` unless `reducedMotion` is passed.
+- `ring` (default `true`) draws the Clearing's rings: the rim and the inner
+  circle. Pass `false` when the host draws its own ground beneath the tray, such
+  as a map that should show through. Only the drawing goes: the dice still
+  rebound from the same rim, and `setPaper()` draws no rings back.
+
+  ```ts
+  // the dice over the Study's ring map: the map's own rings show through
+  mountDiceTray(el, { paper: 'dark', ring: false });
+  ```
+
+- `clearingSize` is how much of the element the Clearing fills: the fraction
+  of its shorter side that the rim spans, from `0.2` to `1` (values outside are
+  clamped). The default, about `0.99`, is the framing the tray has always had:
+  a square or landscape element looks exactly as before; a portrait one is now
+  fitted by its width. The dice still land near the middle, so a smaller
+  Clearing brings them into a smaller circle at the element's centre.
+
+  ```ts
+  // the Clearing over the map's centre circle, which spans 40% of the element
+  mountDiceTray(el, { ring: false, clearingSize: 0.4 });
+  ```
+
 - The one thing it adds outside its element is the Jost face, in
   `document.fonts`; the last tray's `destroy()` removes it.
 - The sounds and the font are `data:` URLs. A host with a Content Security

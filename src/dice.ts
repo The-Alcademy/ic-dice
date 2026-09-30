@@ -765,7 +765,104 @@ export const paperInk = (paper: Paper): string => (paper === 'dark' ? INK_ON_DAR
 /** A shadow dark enough to read on each paper. */
 const SHADOW: Record<Paper, number> = { light: 0.18, dark: 0.45 };
 
-export function createClearing(host: HTMLElement, paper: Paper = 'light'): Clearing {
+/** How the Clearing is shown in its element (see DiceTrayOptions). */
+export interface ClearingOptions {
+  /** Draw the Clearing's rings (the rim and the inner circle). Default true. The dice rebound from the rim either way. */
+  ring?: boolean;
+  /** The fraction of the element's shorter side the Clearing's rim spans, clamped to 0.2–1. Default DEFAULT_CLEARING_SIZE. */
+  clearingSize?: number;
+}
+
+/** Where the camera looks at the Clearing from, and at: fixed; its field of view sets the size. */
+const CAMERA_AT = new THREE.Vector3(0, 17.5, 6.2);
+const CAMERA_AIM = new THREE.Vector3(0, 0, 0.3);
+/** The drawn rim: just outside the wall the dice rebound from. */
+const RIM_RADIUS = CLEARING_RADIUS + 0.4;
+/** The field of view the tray has always framed a square element at. */
+const FRAMING_FOV = 34;
+
+/**
+ * The rim's span on the view plane, one unit from the camera: the larger of its
+ * width and its height (its width, seen from above and in front).
+ */
+function rimSpan(): number {
+  const eye = new THREE.Object3D();
+  eye.position.copy(CAMERA_AT);
+  eye.lookAt(CAMERA_AIM); // an Object3D looks along +z; a camera along -z, so the signs below differ from a camera's
+  eye.updateMatrixWorld();
+  const toEye = eye.matrixWorld.clone().invert();
+  let [u0, u1, v0, v1] = [Infinity, -Infinity, Infinity, -Infinity];
+  for (let i = 0; i < 360; i++) {
+    const a = (i / 360) * Math.PI * 2;
+    const p = new THREE.Vector3(Math.cos(a) * RIM_RADIUS, 0.002, Math.sin(a) * RIM_RADIUS).applyMatrix4(toEye);
+    const [u, v] = [p.x / p.z, p.y / p.z];
+    [u0, u1, v0, v1] = [Math.min(u0, u), Math.max(u1, u), Math.min(v0, v), Math.max(v1, v)];
+  }
+  return Math.max(u1 - u0, v1 - v0);
+}
+const RIM_SPAN = rimSpan();
+
+/** The current framing: the fraction of a square element the rim spans at the tray's usual field of view (about 0.99). */
+export const DEFAULT_CLEARING_SIZE = RIM_SPAN / (2 * Math.tan(THREE.MathUtils.degToRad(FRAMING_FOV) / 2));
+
+/** A Clearing size in 0.2–1; anything else not a number is the default. */
+export function clampClearingSize(size: number | undefined): number {
+  if (size === undefined || !Number.isFinite(size)) return DEFAULT_CLEARING_SIZE;
+  return Math.min(1, Math.max(0.2, size));
+}
+
+/**
+ * The vertical field of view (degrees) at which the rim spans `size` of the
+ * element's shorter side. At the default size, a square or landscape element is
+ * framed exactly as it always was; a portrait one now fits its width.
+ */
+export function clearingFov(size: number | undefined, width: number, height: number): number {
+  if (!(width > 0 && height > 0)) return FRAMING_FOV;
+  const s = clampClearingSize(size);
+  // in pixels the rim spans RIM_SPAN × the focal length, which is height / (2 tan(fov / 2))
+  return THREE.MathUtils.radToDeg(2 * Math.atan((height * RIM_SPAN) / (2 * s * Math.min(width, height))));
+}
+
+/**
+ * The Clearing's scene without its renderer (no page needed): the light, the
+ * ground that takes the shadows, and, unless `ring` is false, its two rings.
+ */
+export function clearingScene(paper: Paper, ring = true) {
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight('#fff8ec', '#b9a78a', 1.4));
+  const sun = new THREE.DirectionalLight('#fff3dd', 2.1);
+  sun.position.set(-5, 14, 7);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7 });
+  scene.add(sun);
+
+  // the Clearing: the page's own paper shows through; only the shadows and the rings are drawn
+  const shadow = new THREE.ShadowMaterial({ opacity: SHADOW[paper] });
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(RIM_RADIUS, 96), shadow);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const ringMaterials: THREE.LineBasicMaterial[] = [];
+  const rings: THREE.LineLoop[] = [];
+  if (ring) {
+    for (const [r, opacity] of [[RIM_RADIUS, 0.9], [INNER_RADIUS, 0.25]] as const) {
+      const material = new THREE.LineBasicMaterial({ color: paperInk(paper), transparent: true, opacity });
+      ringMaterials.push(material);
+      const loop = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(
+          Array.from({ length: 128 }, (_, i) => new THREE.Vector3(Math.cos((i / 128) * Math.PI * 2) * r, 0.002, Math.sin((i / 128) * Math.PI * 2) * r)),
+        ),
+        material,
+      );
+      rings.push(loop);
+      scene.add(loop);
+    }
+  }
+  return { scene, shadow, ringMaterials, rings };
+}
+
+export function createClearing(host: HTMLElement, paper: Paper = 'light', options: ClearingOptions = {}): Clearing {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
   renderer.shadowMap.enabled = true;
@@ -775,37 +872,10 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light'): Clear
   renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
   host.appendChild(renderer.domElement);
 
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-  camera.position.set(0, 17.5, 6.2);
-  camera.lookAt(0, 0, 0.3);
-
-  scene.add(new THREE.HemisphereLight('#fff8ec', '#b9a78a', 1.4));
-  const sun = new THREE.DirectionalLight('#fff3dd', 2.1);
-  sun.position.set(-5, 14, 7);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7 });
-  scene.add(sun);
-
-  // the Clearing: the page's own paper shows through; only the shadows and the ring are drawn
-  const shadow = new THREE.ShadowMaterial({ opacity: SHADOW[paper] });
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(CLEARING_RADIUS + 0.4, 96), shadow);
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
-  const ringMaterials: THREE.LineBasicMaterial[] = [];
-  for (const [r, opacity] of [[CLEARING_RADIUS + 0.4, 0.9], [CLEARING_RADIUS * 0.2, 0.25]] as const) {
-    const material = new THREE.LineBasicMaterial({ color: paperInk(paper), transparent: true, opacity });
-    ringMaterials.push(material);
-    const ring = new THREE.LineLoop(
-      new THREE.BufferGeometry().setFromPoints(
-        Array.from({ length: 128 }, (_, i) => new THREE.Vector3(Math.cos((i / 128) * Math.PI * 2) * r, 0.002, Math.sin((i / 128) * Math.PI * 2) * r)),
-      ),
-      material,
-    );
-    scene.add(ring);
-  }
+  const { scene, shadow, ringMaterials } = clearingScene(paper, options.ring ?? true);
+  const camera = new THREE.PerspectiveCamera(FRAMING_FOV, 1, 0.1, 100);
+  camera.position.copy(CAMERA_AT);
+  camera.lookAt(CAMERA_AIM);
 
   const cube = cubeMesh();
   const tetra = tetraMesh();
@@ -853,6 +923,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light'): Clear
     const { width, height } = host.getBoundingClientRect();
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
+    camera.fov = clearingFov(options.clearingSize, width, height);
     camera.updateProjectionMatrix();
   };
   const observer = new ResizeObserver(resize);
@@ -929,6 +1000,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light'): Clear
 
   const clearing: Clearing = {
     setPaper(next) {
+      // rings turned off stay off: there are none to recolour
       for (const m of ringMaterials) m.color.set(paperInk(next));
       shadow.opacity = SHADOW[next];
     },

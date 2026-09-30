@@ -138,5 +138,32 @@ export interface Clearing {
 }
 /** The ink the ring is drawn in on each paper. */
 export declare const paperInk: (paper: Paper) => string;
-export declare function createClearing(host: HTMLElement, paper?: Paper): Clearing;
+/** How the Clearing is shown in its element (see DiceTrayOptions). */
+export interface ClearingOptions {
+    /** Draw the Clearing's rings (the rim and the inner circle). Default true. The dice rebound from the rim either way. */
+    ring?: boolean;
+    /** The fraction of the element's shorter side the Clearing's rim spans, clamped to 0.2–1. Default DEFAULT_CLEARING_SIZE. */
+    clearingSize?: number;
+}
+/** The current framing: the fraction of a square element the rim spans at the tray's usual field of view (about 0.99). */
+export declare const DEFAULT_CLEARING_SIZE: number;
+/** A Clearing size in 0.2–1; anything else not a number is the default. */
+export declare function clampClearingSize(size: number | undefined): number;
+/**
+ * The vertical field of view (degrees) at which the rim spans `size` of the
+ * element's shorter side. At the default size, a square or landscape element is
+ * framed exactly as it always was; a portrait one now fits its width.
+ */
+export declare function clearingFov(size: number | undefined, width: number, height: number): number;
+/**
+ * The Clearing's scene without its renderer (no page needed): the light, the
+ * ground that takes the shadows, and, unless `ring` is false, its two rings.
+ */
+export declare function clearingScene(paper: Paper, ring?: boolean): {
+    scene: THREE.Scene<THREE.Object3DEventMap>;
+    shadow: THREE.ShadowMaterial;
+    ringMaterials: THREE.LineBasicMaterial[];
+    rings: THREE.LineLoop<THREE.BufferGeometry<THREE.NormalBufferAttributes, THREE.BufferGeometryEventMap>, THREE.Material<THREE.MaterialEventMap>[] | THREE.Material<THREE.MaterialEventMap>, THREE.Object3DEventMap>[];
+};
+export declare function createClearing(host: HTMLElement, paper?: Paper, options?: ClearingOptions): Clearing;
 export type { School, SubStance };

@@ -60,6 +60,18 @@ export interface DiceTrayOptions {
    * to show on it. Default: 'light'. Change it later with setPaper().
    */
   paper?: Paper;
+  /**
+   * Draw the Clearing's rings: the rim and the inner circle. Default: true.
+   * Turn them off when the host draws its own ground beneath (a map showing
+   * through). Only the drawing goes: the dice still rebound from the same rim.
+   */
+  ring?: boolean;
+  /**
+   * How much of the element the Clearing fills: the fraction of its shorter
+   * side that the rim spans, from 0.2 to 1 (values outside are clamped).
+   * Default: the framing the tray has always had, about 0.99 (the rim just inside the element).
+   */
+  clearingSize?: number;
   /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
   onChosen?: (result: RollResult) => void;
 }
@@ -171,7 +183,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   // the cube's letters are drawn into canvases once, so Jost has to be here first
   const ready = acquireJost().then(() => {
     if (destroyed) return;
-    clearing = createClearing(box, paper);
+    clearing = createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize });
     clearing.onImpact = (hit: Impact) => play(hit.kind === 'die' ? 'clack' : 'tray', hit.speed / 9);
     clearing.onLand = () => play('land', 0.8);
   });

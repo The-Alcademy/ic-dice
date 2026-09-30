@@ -1,4 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as pkg from '../src/index';
 import type { DiceTray, RollPick, ShowPick, SkhoolLetter, SubStance, UnsetPick } from '../src/index';
@@ -120,5 +123,42 @@ describe('the paper', () => {
   it('is an option of the tray, and can be changed once it is mounted', () => {
     expectTypeOf<pkg.DiceTrayOptions['paper']>().toEqualTypeOf<pkg.Paper | undefined>();
     expectTypeOf<DiceTray['setPaper']>().parameter(0).toEqualTypeOf<pkg.Paper>();
+  });
+});
+
+describe('ic-dice/faces, the faces alone', () => {
+  it('is its own entry, with its own types', () => {
+    expect(manifest.exports['./faces']).toEqual({ types: './dist/types/faces.d.ts', import: './dist/faces.js' });
+    expect(existsSync(at('dist/faces.js'))).toBe(true);
+    expect(existsSync(at('dist/types/faces.d.ts'))).toBe(true);
+  });
+
+  it('imports nothing, and touches no browser object', () => {
+    const js = readFileSync(at('dist/faces.js'), 'utf8');
+    expect(js).not.toMatch(/\bimport\b|\brequire\(/);
+    expect(js).not.toMatch(/\b(document|window|navigator|Audio|FontFace|WebGL)\b/);
+    expect(js).not.toMatch(/data:/);
+  });
+
+  it('imports cleanly in Node with no three or cannon-es installed, where the whole package cannot', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ic-dice-faces-'));
+    try {
+      const pkgDir = join(dir, 'node_modules', 'ic-dice');
+      cpSync(at('dist'), join(pkgDir, 'dist'), { recursive: true });
+      cpSync(at('package.json'), join(pkgDir, 'package.json'));
+      writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
+      const run = (code: string) => execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+      const out = run(`import { CUBE, TETRA, schoolByLetter } from 'ic-dice/faces';
+        console.log(JSON.stringify({ cube: CUBE.map((s) => s.facultyLetter + ':' + s.faculty), tetra: TETRA.map((t) => t.room), r: schoolByLetter('R').faculty }));`);
+      expect(JSON.parse(out)).toEqual({
+        cube: ['R:REBIS', 'P:PILOT', 'S:SALVE', 'I:IMPRO', 'W:WEAVE', 'A:ALIGN'],
+        tetra: ['Closet', 'Chamber', 'Alcove', 'Parlour'],
+        r: 'REBIS',
+      });
+      // three really is absent there: the whole package fails to load
+      expect(() => run(`await import('ic-dice');`)).toThrow(/three|cannon-es/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

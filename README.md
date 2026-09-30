@@ -97,13 +97,23 @@ The package also exports the faces (`CUBE`, `TETRA`, `schoolByLetter`, the
 `SkhoolLetter` and `SubStance` types) and the Porter's lines
 (`thresholdLine`, `orientationLine`).
 
+The faces alone are `ic-dice/faces` (`dist/faces.js`, about 2.5 kB): `CUBE`,
+`TETRA`, `schoolByLetter` and their types, as plain data with no imports, no
+three.js, no cannon-es and no browser code, so a server function can read the
+Schools and sub-stances without loading the tray:
+
+```ts
+import { CUBE, TETRA, schoolByLetter } from 'ic-dice/faces';
+schoolByLetter('A').gloss; // "test reality and name what is true"
+```
+
 ## Files
 
 | File | What it is |
 |---|---|
 | `src/index.ts` | The package entry. |
 | `src/tray.ts` | `mountDiceTray`: the roller as a mountable module, with its sounds, font, ripple and result check. |
-| `src/faces.ts` | The single source of truth: the six Schools and the four sub-stances, exactly as given. |
+| `src/faces.ts` | The single source of truth: the six Schools and the four sub-stances, exactly as given. Also built alone as `dist/faces.js` (`ic-dice/faces`). |
 | `src/porter.ts` | The Head Porter's threshold line, and the orientation line's slots. |
 | `src/dice.ts` | The dice, the Clearing, the physics and the predetermined landing. |
 | `src/main.ts` | The demo page, mounting the tray as a host would: the slots, the Porter, the sound toggle. |

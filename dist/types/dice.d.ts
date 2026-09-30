@@ -16,25 +16,43 @@ export declare const CUBE_BASE: number[];
 export declare function cubeLabelling(up: number, chosen: number): number[];
 /** A labelling of the tetrahedron's vertices that puts sub-stance `chosen` on vertex `up`: a half-turn about an edge axis, so an even permutation — a rotation, not a mirror image. */
 export declare function tetraLabelling(up: number, chosen: number): number[];
+/** The inner circle drawn on the Clearing. */
+export declare const INNER_RADIUS: number;
+/** Every die rests with its centre this close to the middle. */
+export declare const REST_WITHIN = 2.8;
+/** The two dice rest with their centres at least this far apart (touching needs 2.4 at most: the cube's corner and the tetrahedron's point; 3 leaves a clear gap). */
+export declare const REST_APART = 3;
 export interface Impact {
     t: number;
     speed: number;
     kind: 'die' | 'floor';
 }
-interface Pose {
+export interface Pose {
     p: THREE.Vector3;
     q: THREE.Quaternion;
 }
-interface Simulation {
+export interface Simulation {
     frames: Float32Array[];
     impacts: Impact[];
     duration: number;
     final: Pose[];
     /** Every thrown die was truly still when the recording ended. */
     settled: boolean;
+    /** The two dice were in contact at the end: one leaning on, or lying against, the other. */
+    touching: boolean;
 }
-type Which = 'cube' | 'tetra';
+export type Which = 'cube' | 'tetra';
 export declare function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation;
+/**
+ * A throw worth showing: every thrown die still and squarely on a face, every
+ * die resting near the middle, and the two apart, neither touching nor leaning
+ * on the other. The faces that came up are then relabelled to the chosen ones.
+ */
+export declare function restsWell(sim: Simulation, thrown: Which[]): boolean;
+/** How many unseen throws to try before giving up. */
+export declare const TRIES = 40;
+/** Throw unseen until one rests well (see restsWell), or null after TRIES. */
+export declare function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation | null;
 /**
  * The orientation that brings the cube face carrying School `chosen` up, by the
  * smallest rotation from `q`. The labels stay where they are: the die is turned

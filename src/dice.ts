@@ -370,27 +370,55 @@ const SETTLING = { linear: 0.9, angular: 0.9 };
 /** Close to rest: down on the Clearing, slower than this, turning slower than this. */
 const NEAR_REST = { speed: 1.2, spin: 4, fall: 0.3 };
 
+/* Where the dice come to rest: near the middle, one each side of the inner
+   circle, apart. While a thrown die is low and still moving it is drawn gently
+   towards its own spot (a shallow dish, not a magnet); a throw is kept only if
+   every die then rests within REST_WITHIN of the middle and the two are
+   REST_APART or more apart and not touching. */
+/** The inner circle drawn on the Clearing. */
+export const INNER_RADIUS = CLEARING_RADIUS * 0.2;
+/** Each die's spot: this far from the middle, the two on opposite sides. */
+const SPOT_RADIUS = INNER_RADIUS + 0.65;
+/** The pull towards the spot, per unit of distance, while the die is low and moving. */
+const PULL = 18;
+/** The push away from the other die, per unit it is closer than REST_APART + 0.5. */
+const PUSH = 14;
+/** The dish's drag on a low, moving die, per unit of its speed across the Clearing, so it does not overshoot its spot. */
+const DRAG = 3.5;
+/** Slower than this, a die is left alone to settle and sleep. */
+const PULL_UNTIL = 0.3;
+/** Below this height (of its centre) a die counts as low enough to be pulled. */
+const PULL_BELOW = 1.6;
+/** Every die rests with its centre this close to the middle. */
+export const REST_WITHIN = 2.8;
+/** The two dice rest with their centres at least this far apart (touching needs 2.4 at most: the cube's corner and the tetrahedron's point; 3 leaves a clear gap). */
+export const REST_APART = 3.0;
+/** Dice in contact this close to the end of a throw are touching at rest: a sleeping die makes no contacts, and falling asleep takes 0.25 s. */
+const TOUCH_LOOKBACK = 0.5;
+
 export interface Impact {
   t: number;
   speed: number;
   kind: 'die' | 'floor';
 }
 
-interface Pose {
+export interface Pose {
   p: THREE.Vector3;
   q: THREE.Quaternion;
 }
 
-interface Simulation {
+export interface Simulation {
   frames: Float32Array[]; // per die: [x y z qx qy qz qw] per recorded frame
   impacts: Impact[];
   duration: number;
   final: Pose[];
   /** Every thrown die was truly still when the recording ended. */
   settled: boolean;
+  /** The two dice were in contact at the end: one leaning on, or lying against, the other. */
+  touching: boolean;
 }
 
-type Which = 'cube' | 'tetra';
+export type Which = 'cube' | 'tetra';
 
 function cubeShape(): CANNON.ConvexPolyhedron {
   const { vertices, faces, index } = truncatedCube();
@@ -443,6 +471,14 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
   const impacts: Impact[] = [];
   let step = 0;
   const base = unit() * Math.PI * 2;
+  // each thrown die's spot: across the inner circle from the other die's
+  const spot: Partial<Record<Which, CANNON.Vec3>> = {};
+  const lying = (['cube', 'tetra'] as Which[]).find((w) => !thrown.includes(w) && resting[w]);
+  const away = lying ? Math.atan2(resting[lying]!.p.z, resting[lying]!.p.x) + Math.PI : base + Math.PI / 2;
+  thrown.forEach((w, i) => {
+    const a = away + i * Math.PI;
+    spot[w] = new CANNON.Vec3(Math.cos(a) * SPOT_RADIUS, 0, Math.sin(a) * SPOT_RADIUS);
+  });
   (['cube', 'tetra'] as Which[]).forEach((which, i) => {
     const body = bodies[which];
     body.sleepSpeedLimit = 0.08;
@@ -450,11 +486,12 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
     body.linearDamping = DAMPING.linear;
     body.angularDamping = DAMPING.angular;
     if (thrown.includes(which)) {
-      // in from the rim, towards the middle, tumbling
-      const a = base + i * 0.5;
+      // in from the rim, from the side (so it never crosses the other die's path), towards its own spot, tumbling
+      const s = spot[which]!;
+      const a = Math.atan2(s.z, s.x) + Math.PI / 2 + (unit() - 0.5) * 0.6;
       body.position.set(Math.cos(a) * (CLEARING_RADIUS - 1), 2.5 + unit(), Math.sin(a) * (CLEARING_RADIUS - 1));
       body.quaternion.setFromEuler(unit() * 6.3, unit() * 6.3, unit() * 6.3);
-      const to = a + Math.PI + (unit() - 0.5) * 0.7;
+      const to = Math.atan2(s.z - body.position.z, s.x - body.position.x) + (unit() - 0.5) * 0.4;
       const speed = 6.5 + unit() * 2.5;
       body.velocity.set(Math.cos(to) * speed, -2, Math.sin(to) * speed);
       body.angularVelocity.set((unit() - 0.5) * 30, (unit() - 0.5) * 30, (unit() - 0.5) * 30);
@@ -478,6 +515,7 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
 
   const order: Which[] = ['cube', 'tetra'];
   const record: number[][] = order.map(() => []);
+  let lastTouch = -1;
   const moving = () => thrown.some((w) => bodies[w].sleepState !== CANNON.Body.SLEEPING);
   while (step < MAX_SECONDS / STEP) {
     if (step % RECORD_EVERY === 0) {
@@ -495,8 +533,25 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
       const settle = near || step * STEP >= SETTLE_BY;
       b.linearDamping = settle ? SETTLING.linear : DAMPING.linear;
       b.angularDamping = settle ? SETTLING.angular : DAMPING.angular;
+      // the dish: low and still moving, drawn towards its spot and away from the
+      // other die; once slow it is left alone, so it can fall asleep
+      if (b.position.y < PULL_BELOW && b.velocity.length() > PULL_UNTIL) {
+        const s = spot[w]!;
+        let fx = (s.x - b.position.x) * PULL - b.velocity.x * DRAG;
+        let fz = (s.z - b.position.z) * PULL - b.velocity.z * DRAG;
+        const o = bodies[w === 'cube' ? 'tetra' : 'cube'];
+        const dx = b.position.x - o.position.x;
+        const dz = b.position.z - o.position.z;
+        const d = Math.hypot(dx, dz);
+        if ((thrown.length === 2 || resting[w === 'cube' ? 'tetra' : 'cube']) && d > 1e-6 && d < REST_APART + 0.5) {
+          fx += (dx / d) * (REST_APART + 0.5 - d) * PUSH;
+          fz += (dz / d) * (REST_APART + 0.5 - d) * PUSH;
+        }
+        b.applyForce(new CANNON.Vec3(fx * b.mass, 0, fz * b.mass));
+      }
     }
     world.step(STEP);
+    if (world.contacts.some((c) => (c.bi === bodies.cube && c.bj === bodies.tetra) || (c.bi === bodies.tetra && c.bj === bodies.cube))) lastTouch = step;
     step++;
     if (step > 30 && !moving()) break;
   }
@@ -531,7 +586,40 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
   const settled = thrown.every(
     (w) => bodies[w].sleepState === CANNON.Body.SLEEPING || (bodies[w].velocity.length() < 0.02 && bodies[w].angularVelocity.length() < 0.05),
   );
-  return { frames: record.map((r) => Float32Array.from(r)), impacts: merged, duration: ends, final, settled };
+  // a die leaning on the other touches it until the last one sleeps; sleeping dice make no contacts, so look back
+  const touching = lastTouch >= 0 && step - lastTouch <= TOUCH_LOOKBACK / STEP;
+  return { frames: record.map((r) => Float32Array.from(r)), impacts: merged, duration: ends, final, settled, touching };
+}
+
+/**
+ * A throw worth showing: every thrown die still and squarely on a face, every
+ * die resting near the middle, and the two apart, neither touching nor leaning
+ * on the other. The faces that came up are then relabelled to the chosen ones.
+ */
+export function restsWell(sim: Simulation, thrown: Which[]): boolean {
+  const [cube, tetra] = sim.final;
+  const out = (p: THREE.Vector3) => Math.hypot(p.x, p.z);
+  return (
+    sim.settled &&
+    !sim.touching &&
+    (!thrown.includes('cube') || cubeUp(cube.q).flat > 0.97) &&
+    (!thrown.includes('tetra') || tetraUp(tetra.q).flat > 0.97) &&
+    out(cube.p) <= REST_WITHIN &&
+    out(tetra.p) <= REST_WITHIN &&
+    Math.hypot(cube.p.x - tetra.p.x, cube.p.z - tetra.p.z) >= REST_APART
+  );
+}
+
+/** How many unseen throws to try before giving up. */
+export const TRIES = 40;
+
+/** Throw unseen until one rests well (see restsWell), or null after TRIES. */
+export function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation | null {
+  for (let attempt = 0; attempt < TRIES; attempt++) {
+    const s = simulate(thrown, resting);
+    if (restsWell(s, thrown)) return s;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------- reading --
@@ -747,8 +835,8 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light'): Clear
 
   // at rest before the first throw: side by side in the middle of the Clearing
   const rest: Record<Which, Pose> = {
-    cube: { p: new THREE.Vector3(-0.9, CUBE_HALF, 0.4), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0.4, 0)) },
-    tetra: { p: new THREE.Vector3(1.0, 0, 0), q: new THREE.Quaternion() },
+    cube: { p: new THREE.Vector3(-1.5, CUBE_HALF, 0.3), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0.4, 0)) },
+    tetra: { p: new THREE.Vector3(1.5, 0, -0.1), q: new THREE.Quaternion() },
   };
   // a tetrahedron resting on face 0, apex (vertex 0) up
   rest.tetra.q.setFromUnitVectors(new THREE.Vector3(...TETRA_VERTS[0]).normalize(), new THREE.Vector3(0, 1, 0));
@@ -854,18 +942,11 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light'): Clear
       const thrown = (['cube', 'tetra'] as Which[]).filter((w) => chosen[w] !== undefined);
       const resting = { cube: { p: meshes.cube.position.clone(), q: meshes.cube.quaternion.clone() }, tetra: { p: meshes.tetra.position.clone(), q: meshes.tetra.quaternion.clone() } };
 
-      // 2. simulate unseen until every thrown die rests squarely on a face
-      let sim: Simulation | null = null;
-      for (let attempt = 0; attempt < 12 && !sim; attempt++) {
-        const s = simulate(thrown, resting);
-        const squarely =
-          (!thrown.includes('cube') || cubeUp(s.final[0].q).flat > 0.97) &&
-          (!thrown.includes('tetra') || tetraUp(s.final[1].q).flat > 0.97);
-        if (squarely && s.settled) sim = s;
-      }
+      // 2. simulate unseen until the dice rest squarely, near the middle and apart
+      const sim = throwUnseen(thrown, resting);
       if (!sim) {
         playing = false;
-        throw new Error('No throw came to rest squarely in 12 tries');
+        throw new Error(`No throw came to rest well in ${TRIES} tries`);
       }
 
       // 3. label the dice so the faces that came up carry the chosen results

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CUBE, TETRA } from '../src/faces';
-import { CUBE_BASE, CUBE_FACES, cubeLabelling, tetraLabelling, cubeTurnTo, tetraTurnTo, tetraRestHeight, cubeShows, tetraShows, cubeUnsetTo, tetraUnsetTo, CUBE_CORNER_HEIGHT, TETRA_POINT_HEIGHT, lowestPoint, simulate, CUBE_HALF } from '../src/dice';
+import { CUBE_BASE, CUBE_FACES, cubeLabelling, tetraLabelling, cubeTurnTo, tetraTurnTo, tetraRestHeight, cubeShows, tetraShows, cubeUnsetTo, tetraUnsetTo, CUBE_CORNER_HEIGHT, TETRA_POINT_HEIGHT, lowestPoint, simulate, CUBE_HALF, throwUnseen, INNER_RADIUS, REST_WITHIN, REST_APART } from '../src/dice';
 
 const letter = (i: number) => CUBE[i].facultyLetter;
 /** Faces 0/1, 2/3 and 4/5 are opposite (+x/−x, +y/−y, +z/−z). */
@@ -204,4 +204,50 @@ describe('undeciding a die: balanced on a corner, showing nothing', () => {
     }
     expect(square).toBe(1);
   });
+});
+
+describe('where the dice come to rest', () => {
+  const out = (p: THREE.Vector3) => Math.hypot(p.x, p.z);
+  const apart = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
+
+  it('30 throws in a row, as a student makes them: each die near the middle, around the inner circle, apart, and on the chosen face', () => {
+    // at rest before the first throw, as createClearing places them
+    let resting = {
+      cube: { p: new THREE.Vector3(-1.5, CUBE_HALF, 0.3), q: new THREE.Quaternion() },
+      tetra: { p: new THREE.Vector3(1.5, tetraRestHeight(new THREE.Quaternion()), -0.1), q: new THREE.Quaternion() },
+    };
+    expect(apart(resting.cube.p, resting.tetra.p)).toBeGreaterThanOrEqual(REST_APART);
+    const kinds = [['cube', 'tetra'], ['cube'], ['tetra']] as const;
+    for (let n = 0; n < 30; n++) {
+      const thrown = [...kinds[n % 3]];
+      const sim = throwUnseen(thrown, resting);
+      expect(sim, `throw ${n}`).not.toBeNull();
+      const [cube, tetra] = sim!.final;
+      expect(sim!.settled).toBe(true);
+      expect(sim!.touching, `throw ${n}: the dice touch`).toBe(false);
+      for (const [name, p] of [['cube', cube.p], ['tetra', tetra.p]] as const) {
+        expect(out(p), `throw ${n}: the ${name} is ${out(p).toFixed(2)} from the middle`).toBeLessThanOrEqual(REST_WITHIN);
+      }
+      expect(apart(cube.p, tetra.p), `throw ${n}: the dice are ${apart(cube.p, tetra.p).toFixed(2)} apart`).toBeGreaterThanOrEqual(REST_APART);
+      // "around the inner circle": between them the two dice straddle it
+      expect(out(cube.p) + out(tetra.p)).toBeGreaterThanOrEqual(2 * INNER_RADIUS);
+      // a die left out of the throw has not moved
+      if (!thrown.includes('cube')) expect(cube.p.distanceTo(resting.cube.p)).toBeCloseTo(0, 9);
+      if (!thrown.includes('tetra')) expect(tetra.p.distanceTo(resting.tetra.p)).toBeCloseTo(0, 9);
+      // the chosen-face guarantee: relabelled, the face that came up is the chosen one
+      if (thrown.includes('cube')) {
+        const chosen = n % 6;
+        const labels = cubeLabelling(cubeShows(cube.q, [0, 1, 2, 3, 4, 5]).label, chosen);
+        expect(cubeShows(cube.q, labels)).toEqual({ label: chosen, flat: expect.any(Number) });
+        expect(cubeShows(cube.q, labels).flat).toBeGreaterThan(0.97);
+      }
+      if (thrown.includes('tetra')) {
+        const chosen = n % 4;
+        const labels = tetraLabelling(tetraShows(tetra.q, [0, 1, 2, 3]).label, chosen);
+        expect(tetraShows(tetra.q, labels).label).toBe(chosen);
+        expect(tetraShows(tetra.q, labels).flat).toBeGreaterThan(0.97);
+      }
+      resting = { cube: { p: cube.p.clone(), q: cube.q.clone() }, tetra: { p: tetra.p.clone(), q: tetra.q.clone() } };
+    }
+  }, 60000);
 });

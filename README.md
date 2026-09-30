@@ -149,8 +149,14 @@ not the physics.
 
 1. The page chooses the result.
 2. `dice.ts` simulates the throw off-screen, to rest, with a fixed step,
-   recording the path and every impact. A throw that settles cocked (a cube on
-   a corner facet, a tetrahedron not flat) is thrown again, unseen.
+   recording the path and every impact. Each die is thrown in from the side
+   towards its own spot, one each side of the inner circle, and while it is low
+   and still moving the Clearing acts as a shallow dish: a gentle pull towards
+   that spot, a drag, and a push away from the other die. A throw is kept only
+   if every die rests squarely on a face, within 2.8 of the middle (the inner
+   circle is 1.04, the rim 5.2), at least 3.0 from the other die, and not
+   touching it; otherwise it is thrown again, unseen (up to 40 times; about 85%
+   of throws are kept first time). A die left out of a throw does not move.
 3. The dice are labelled so that the face that came to rest upward carries the
    chosen result. The labelling is a rotation of the die's own labels, so it
    stays a proper die: opposite spokes of the mandala stay on opposite faces

@@ -1,5 +1,6 @@
-// The two dice, thrown across the Clearing with real physics, landing on
-// results chosen before the throw.
+// The three dice, thrown across the Clearing with real physics, landing on
+// results chosen before the throw: the MetaMind cube (the Skhool), the
+// tetrahedron (the sub-stance) and the solid die (the Hall's solid).
 //
 // Route (see README.md): three + cannon-es directly, after a spike on
 // @3d-dice/dice-box-threejs. How a predetermined roll works here:
@@ -20,7 +21,7 @@
 
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { CUBE, TETRA, INK, INK_ON_DARK, type Paper, type School, type SubStance, type SubRoomIcon } from './faces';
+import { CUBE, TETRA, SOLIDS, INK, INK_ON_DARK, type Paper, type School, type SubStance, type SubRoomIcon } from './faces';
 
 // ---------------------------------------------------------------- geometry --
 
@@ -47,6 +48,13 @@ export const CUBE_FACES: { n: V3; up: V3 }[] = [
  * Opposite spokes of the mandala are opposite faces: R/I, P/W, S/A.
  */
 export const CUBE_BASE = [1, 4, 0, 3, 2, 5]; // +x P, -x W, +y R, -y I, +z S, -z A
+
+/**
+ * The solid die's base labelling: which solid (index into SOLIDS) is on which
+ * face. Opposite faces sum to ring 5, as a real die's sum to 7: Sphere/Icosahedron,
+ * Tetrahedron/Dodecahedron, Hexahedron/Octahedron.
+ */
+export const SOLID_BASE = [0, 5, 1, 4, 2, 3]; // +x S, -x I, +y T, -y D, +z H, -z O
 
 const TETRA_VERTS: V3[] = [
   [1, 1, 1],
@@ -144,6 +152,92 @@ function texture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   return t;
+}
+
+/** The solid die's wood: the same grain, stained darker, so it is never taken for the MetaMind cube. */
+const STAIN_BASE = '#8A6844';
+function stainedCanvas(size = 256): HTMLCanvasElement {
+  const c = woodCanvas(size);
+  const g = c.getContext('2d')!;
+  g.globalCompositeOperation = 'multiply';
+  g.fillStyle = STAIN_BASE;
+  g.fillRect(0, 0, size, size);
+  g.globalCompositeOperation = 'source-over';
+  return c;
+}
+
+/** How each solid is seen when it is drawn on the die: a little from above and to one side. */
+const DRAWING_VIEW = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.42, -0.62, 0));
+
+/**
+ * A solid as drawn on a face of the solid die: the edges of its faces turned
+ * towards the viewer, in 2D, fitted to a unit box centred on 0,0 (y down, as a
+ * canvas draws). The Sphere has no edges: its outline and one great circle are
+ * drawn instead (see solidTexture).
+ */
+export function solidDrawing(code: string): [number, number, number, number][] {
+  const geometry =
+    code === 'T' ? new THREE.TetrahedronGeometry(1) :
+    code === 'H' ? new THREE.BoxGeometry(1.2, 1.2, 1.2) :
+    code === 'O' ? new THREE.OctahedronGeometry(1) :
+    code === 'D' ? new THREE.DodecahedronGeometry(1) :
+    code === 'I' ? new THREE.IcosahedronGeometry(1) : null;
+  if (!geometry) return [];
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
+  const pos = g.getAttribute('position');
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i < pos.count; i++) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyQuaternion(DRAWING_VIEW));
+  // the triangles facing the viewer (+z), and the true edges (not the diagonals splitting a flat face)
+  const front: THREE.Vector3[][] = [];
+  for (let i = 0; i < pts.length; i += 3) {
+    const n = new THREE.Vector3().subVectors(pts[i + 1], pts[i]).cross(new THREE.Vector3().subVectors(pts[i + 2], pts[i]));
+    if (n.z > 1e-6) front.push([pts[i], pts[i + 1], pts[i + 2]]);
+  }
+  const edges = new THREE.EdgesGeometry(geometry, 1).getAttribute('position');
+  const near = (a: THREE.Vector3, b: THREE.Vector3) => a.distanceTo(b) < 1e-4;
+  const segments: [number, number, number, number][] = [];
+  for (let i = 0; i < edges.count; i += 2) {
+    const a = new THREE.Vector3().fromBufferAttribute(edges, i).applyQuaternion(DRAWING_VIEW);
+    const b = new THREE.Vector3().fromBufferAttribute(edges, i + 1).applyQuaternion(DRAWING_VIEW);
+    if (front.some((t) => t.some((p) => near(p, a)) && t.some((p) => near(p, b)))) segments.push([a.x, -a.y, b.x, -b.y]);
+  }
+  // fitted to the unit box, so every solid is drawn the same size
+  const xs = segments.flatMap(([x1, , x2]) => [x1, x2]);
+  const ys = segments.flatMap(([, y1, , y2]) => [y1, y2]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const k = 1 / Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  return segments.map(([x1, y1, x2, y2]) => [(x1 - cx) * k, (y1 - cy) * k, (x2 - cx) * k, (y2 - cy) * k]);
+}
+
+/** A face of the solid die: its solid, drawn in ink on the stained wood. */
+function solidTexture(solid: (typeof SOLIDS)[number]): THREE.CanvasTexture {
+  const size = 256;
+  const c = stainedCanvas(size);
+  const g = c.getContext('2d')!;
+  g.strokeStyle = INK;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.lineWidth = 9;
+  g.translate(size / 2, size / 2);
+  const scale = size * 0.56;
+  if (solid.code === 'S') {
+    // the Sphere: its outline and one great circle
+    g.beginPath();
+    g.arc(0, 0, scale / 2, 0, Math.PI * 2);
+    g.stroke();
+    g.beginPath();
+    g.ellipse(0, 0, scale / 2, scale / 6, -0.35, 0, Math.PI * 2);
+    g.stroke();
+  } else {
+    g.beginPath();
+    for (const [x1, y1, x2, y2] of solidDrawing(solid.code)) {
+      g.moveTo(x1 * scale, y1 * scale);
+      g.lineTo(x2 * scale, y2 * scale);
+    }
+    g.stroke();
+  }
+  return texture(c);
 }
 
 function letterTexture(school: School): THREE.CanvasTexture {
@@ -251,7 +345,7 @@ function tetraFaceTexture(labels: [number, number, number]): THREE.CanvasTexture
 
 const ink = new THREE.LineBasicMaterial({ color: INK });
 
-function cubeMesh(): { mesh: THREE.Mesh; faceMaterials: THREE.MeshStandardMaterial[] } {
+function cubeMesh(stained = false): { mesh: THREE.Mesh; faceMaterials: THREE.MeshStandardMaterial[] } {
   const { faces } = truncatedCube();
   const positions: number[] = [];
   const uvs: number[] = [];
@@ -277,9 +371,10 @@ function cubeMesh(): { mesh: THREE.Mesh; faceMaterials: THREE.MeshStandardMateri
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   for (const [s, c, m] of groups) geo.addGroup(s, c, m);
   geo.computeVertexNormals();
-  const wood = texture(woodCanvas());
+  const wood = texture(stained ? stainedCanvas() : woodCanvas());
   const faceMaterials = CUBE_FACES.map(() => new THREE.MeshStandardMaterial({ map: wood, roughness: 0.7 }));
-  const corner = new THREE.MeshStandardMaterial({ color: WOOD_BASE, roughness: 0.75 });
+  // the solid die's corners take the stain too: multiplied, as on its faces
+  const corner = new THREE.MeshStandardMaterial({ color: stained ? new THREE.Color(WOOD_BASE).multiply(new THREE.Color(STAIN_BASE)) : WOOD_BASE, roughness: 0.75 });
   const mesh = new THREE.Mesh(geo, [...faceMaterials, corner]);
   mesh.castShadow = true;
   mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 10), ink));
@@ -334,11 +429,21 @@ const faceOf = (n: V3) => CUBE_FACES.findIndex((f) => dot(f.n, n) > 0.5);
 
 /** A labelling of the cube's faces that puts School `chosen` on face `up`: the base labelling turned by one of the cube's 24 rotations, never permuted freely, so R/I, P/W and S/A stay opposite on every throw. */
 export function cubeLabelling(up: number, chosen: number): number[] {
-  const from = CUBE_BASE.indexOf(chosen);
+  return turnedLabelling(CUBE_BASE, up, chosen);
+}
+
+/** The same for the solid die: the solid `chosen` on face `up`, opposite faces still summing to ring 5. */
+export function solidLabelling(up: number, chosen: number): number[] {
+  return turnedLabelling(SOLID_BASE, up, chosen);
+}
+
+/** A six-faced die's base labelling turned by one of the cube's 24 rotations so that label `chosen` is on face `up`. */
+function turnedLabelling(base: number[], up: number, chosen: number): number[] {
+  const from = base.indexOf(chosen);
   const rotation = CUBE_ROTATIONS.find((m) => faceOf(apply(m, CUBE_FACES[from].n)) === up)!;
   const labels = new Array<number>(6);
   CUBE_FACES.forEach((f, i) => {
-    labels[faceOf(apply(rotation, f.n))] = CUBE_BASE[i];
+    labels[faceOf(apply(rotation, f.n))] = base[i];
   });
   return labels;
 }
@@ -391,6 +496,10 @@ const PULL_UNTIL = 0.3;
 const PULL_BELOW = 1.6;
 /** Every die rests with its centre this close to the middle. */
 export const REST_WITHIN = 2.8;
+/** With three dice on the Clearing, the spots move out, and so may the dice: there is not room for three within REST_WITHIN, REST_APART apart. */
+export const REST_WITHIN_THREE = 3.5;
+/** Each die's spot when three are on the Clearing. */
+const SPOT_RADIUS_THREE = 2.7;
 /** The two dice rest with their centres at least this far apart (touching needs 2.4 at most: the cube's corner and the tetrahedron's point; 3 leaves a clear gap). */
 export const REST_APART = 3.0;
 /** Dice in contact this close to the end of a throw are touching at rest: a sleeping die makes no contacts, and falling asleep takes 0.25 s. */
@@ -414,11 +523,16 @@ export interface Simulation {
   final: Pose[];
   /** Every thrown die was truly still when the recording ended. */
   settled: boolean;
-  /** The two dice were in contact at the end: one leaning on, or lying against, the other. */
+  /** Two dice were in contact at the end: one leaning on, or lying against, another. */
   touching: boolean;
+  /** The dice on the Clearing during the throw: those thrown, and those lying there. */
+  present: Which[];
 }
 
-export type Which = 'cube' | 'tetra';
+export type Which = 'cube' | 'tetra' | 'solid';
+/** The three dice, in the order a simulation records them. */
+export const DICE: readonly Which[] = ['cube', 'tetra', 'solid'];
+const isSix = (w: Which) => w !== 'tetra'; // the cube and the solid die: six faces, the same body
 
 function cubeShape(): CANNON.ConvexPolyhedron {
   const { vertices, faces, index } = truncatedCube();
@@ -467,19 +581,38 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
   const bodies: Record<Which, CANNON.Body> = {
     cube: new CANNON.Body({ mass: 1, material: dieMat, shape: cubeShape() }),
     tetra: new CANNON.Body({ mass: 0.7, material: dieMat, shape: tetraShape() }),
+    solid: new CANNON.Body({ mass: 1, material: dieMat, shape: cubeShape() }),
   };
   const impacts: Impact[] = [];
   let step = 0;
   const base = unit() * Math.PI * 2;
-  // each thrown die's spot: across the inner circle from the other die's
+  // the dice on the Clearing: those thrown, and those lying where they came to rest
+  const present = DICE.filter((w) => thrown.includes(w) || resting[w]);
+  const radius = present.length >= 3 ? SPOT_RADIUS_THREE : SPOT_RADIUS;
+  // each thrown die's spot: the middle of the widest gap round the Clearing
+  // between the dice already there (opposite a single die; across from the
+  // first when two are thrown together)
+  const taken = present.filter((w) => !thrown.includes(w)).map((w) => Math.atan2(resting[w]!.p.z, resting[w]!.p.x));
   const spot: Partial<Record<Which, CANNON.Vec3>> = {};
-  const lying = (['cube', 'tetra'] as Which[]).find((w) => !thrown.includes(w) && resting[w]);
-  const away = lying ? Math.atan2(resting[lying]!.p.z, resting[lying]!.p.x) + Math.PI : base + Math.PI / 2;
-  thrown.forEach((w, i) => {
-    const a = away + i * Math.PI;
-    spot[w] = new CANNON.Vec3(Math.cos(a) * SPOT_RADIUS, 0, Math.sin(a) * SPOT_RADIUS);
-  });
-  (['cube', 'tetra'] as Which[]).forEach((which, i) => {
+  for (const w of thrown) {
+    let a = base + Math.PI / 2;
+    if (taken.length) {
+      const sorted = [...taken].sort((x, y) => x - y);
+      let widest = -1;
+      sorted.forEach((t, i) => {
+        const next = i + 1 < sorted.length ? sorted[i + 1] : sorted[0] + Math.PI * 2;
+        const gap = next - t;
+        // equal gaps (two dice lying opposite) are chosen between at random
+        if (gap > widest + 1e-6 || (Math.abs(gap - widest) <= 1e-6 && unit() < 0.5)) {
+          widest = gap;
+          a = t + gap / 2;
+        }
+      });
+    }
+    taken.push(a);
+    spot[w] = new CANNON.Vec3(Math.cos(a) * radius, 0, Math.sin(a) * radius);
+  }
+  DICE.forEach((which) => {
     const body = bodies[which];
     body.sleepSpeedLimit = 0.08;
     body.sleepTimeLimit = 0.25;
@@ -507,13 +640,13 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
     body.addEventListener('collide', (e: { body: CANNON.Body; contact: CANNON.ContactEquation }) => {
       const speed = Math.abs(e.contact.getImpactVelocityAlongNormal());
       if (speed < 0.6) return;
-      const kind = e.body === bodies.cube || e.body === bodies.tetra ? 'die' : 'floor';
+      const kind = DICE.some((w) => e.body === bodies[w]) ? 'die' : 'floor';
       impacts.push({ t: step * STEP, speed, kind });
     });
     world.addBody(body);
   });
 
-  const order: Which[] = ['cube', 'tetra'];
+  const order = DICE;
   const record: number[][] = order.map(() => []);
   let lastTouch = -1;
   const moving = () => thrown.some((w) => bodies[w].sleepState !== CANNON.Body.SLEEPING);
@@ -539,19 +672,24 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
         const s = spot[w]!;
         let fx = (s.x - b.position.x) * PULL - b.velocity.x * DRAG;
         let fz = (s.z - b.position.z) * PULL - b.velocity.z * DRAG;
-        const o = bodies[w === 'cube' ? 'tetra' : 'cube'];
-        const dx = b.position.x - o.position.x;
-        const dz = b.position.z - o.position.z;
-        const d = Math.hypot(dx, dz);
-        if ((thrown.length === 2 || resting[w === 'cube' ? 'tetra' : 'cube']) && d > 1e-6 && d < REST_APART + 0.5) {
-          fx += (dx / d) * (REST_APART + 0.5 - d) * PUSH;
-          fz += (dz / d) * (REST_APART + 0.5 - d) * PUSH;
+        // and away from every other die on the Clearing
+        for (const other of present) {
+          if (other === w) continue;
+          const o = bodies[other];
+          const dx = b.position.x - o.position.x;
+          const dz = b.position.z - o.position.z;
+          const d = Math.hypot(dx, dz);
+          if (d > 1e-6 && d < REST_APART + 0.5) {
+            fx += (dx / d) * (REST_APART + 0.5 - d) * PUSH;
+            fz += (dz / d) * (REST_APART + 0.5 - d) * PUSH;
+          }
         }
         b.applyForce(new CANNON.Vec3(fx * b.mass, 0, fz * b.mass));
       }
     }
     world.step(STEP);
-    if (world.contacts.some((c) => (c.bi === bodies.cube && c.bj === bodies.tetra) || (c.bi === bodies.tetra && c.bj === bodies.cube))) lastTouch = step;
+    const isDie = (b: CANNON.Body) => DICE.some((w) => bodies[w] === b);
+    if (world.contacts.some((c) => isDie(c.bi) && isDie(c.bj))) lastTouch = step;
     step++;
     if (step > 30 && !moving()) break;
   }
@@ -588,7 +726,7 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
   );
   // a die leaning on the other touches it until the last one sleeps; sleeping dice make no contacts, so look back
   const touching = lastTouch >= 0 && step - lastTouch <= TOUCH_LOOKBACK / STEP;
-  return { frames: record.map((r) => Float32Array.from(r)), impacts: merged, duration: ends, final, settled, touching };
+  return { frames: record.map((r) => Float32Array.from(r)), impacts: merged, duration: ends, final, settled, touching, present };
 }
 
 /**
@@ -597,16 +735,16 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
  * on the other. The faces that came up are then relabelled to the chosen ones.
  */
 export function restsWell(sim: Simulation, thrown: Which[]): boolean {
-  const [cube, tetra] = sim.final;
+  const at = (w: Which) => sim.final[DICE.indexOf(w)];
   const out = (p: THREE.Vector3) => Math.hypot(p.x, p.z);
+  const within = sim.present.length >= 3 ? REST_WITHIN_THREE : REST_WITHIN;
+  const pairs = sim.present.flatMap((a, i) => sim.present.slice(i + 1).map((b) => [a, b] as const));
   return (
     sim.settled &&
     !sim.touching &&
-    (!thrown.includes('cube') || cubeUp(cube.q).flat > 0.97) &&
-    (!thrown.includes('tetra') || tetraUp(tetra.q).flat > 0.97) &&
-    out(cube.p) <= REST_WITHIN &&
-    out(tetra.p) <= REST_WITHIN &&
-    Math.hypot(cube.p.x - tetra.p.x, cube.p.z - tetra.p.z) >= REST_APART
+    thrown.every((w) => (isSix(w) ? cubeUp(at(w).q).flat : tetraUp(at(w).q).flat) > 0.97) &&
+    sim.present.every((w) => out(at(w).p) <= within) &&
+    pairs.every(([a, b]) => Math.hypot(at(a).p.x - at(b).p.x, at(a).p.z - at(b).p.z) >= REST_APART)
   );
 }
 
@@ -724,34 +862,116 @@ export function tetraShows(q: THREE.Quaternion, labels: number[]): { label: numb
   return { label: labels[up.vertex], flat: up.flat };
 }
 
+// ----------------------------------------------------------------- the table --
+
+/** Where a die is: off the table (not drawn), on the Clearing, or parked above its rim. */
+export type Place = 'off' | 'table' | 'parked';
+
+/**
+ * Which die is where, and what must happen before a die is thrown, shown or
+ * unset. The state machine alone: no drawing, no animation. The MetaMind cube and
+ * the tetrahedron begin on the Clearing; the solid die begins off the table.
+ */
+export class DiceTable {
+  readonly place: Record<Which, Place> = { cube: 'table', tetra: 'table', solid: 'off' };
+
+  /** The dice lying on the Clearing: the ones a throw lands among. */
+  onTable(): Which[] {
+    return DICE.filter((w) => this.place[w] === 'table');
+  }
+
+  /** Park the named dice that are on the Clearing; returns those that move. A die off the table stays off. */
+  park(which: readonly Which[]): Which[] {
+    const moved = which.filter((w) => this.place[w] === 'table');
+    for (const w of moved) this.place[w] = 'parked';
+    return moved;
+  }
+
+  /** Bring parked dice back onto the Clearing (all of them, unless named); returns those that move. */
+  unpark(which: readonly Which[] = DICE): Which[] {
+    const moved = which.filter((w) => this.place[w] === 'parked');
+    for (const w of moved) this.place[w] = 'table';
+    return moved;
+  }
+
+  /**
+   * Before the named dice are thrown, shown or unset: a parked die is unparked
+   * first, and a die off the table comes onto it. Every named die is then on the table.
+   */
+  before(which: readonly Which[]): { unparked: Which[]; appeared: Which[] } {
+    const unparked = this.unpark(which);
+    const appeared = which.filter((w) => this.place[w] === 'off');
+    for (const w of appeared) this.place[w] = 'table';
+    return { unparked, appeared };
+  }
+}
+
+/** The parked row: just above the Clearing's rim, as the page is seen, the dice side by side. */
+export const PARK_Z = -(CLEARING_RADIUS + 1.5);
+const PARK_X: Record<Which, number> = { cube: -1.3, tetra: 1.3, solid: 0 };
+
+/**
+ * A place on the Clearing for a die: `preferred` if it is REST_APART from every
+ * die in `avoid`; else the first point clear of them on a circle round the
+ * middle, widening the circle if it must; else the point farthest from them.
+ */
+export function freeSpot(preferred: THREE.Vector3 | null, avoid: THREE.Vector3[], radius = 2.4): THREE.Vector3 {
+  const gap = (p: THREE.Vector3) => Math.min(Infinity, ...avoid.map((a) => Math.hypot(p.x - a.x, p.z - a.z)));
+  if (preferred && gap(preferred) >= REST_APART) return preferred.clone();
+  let best = new THREE.Vector3(radius, 0, 0);
+  for (const r of [radius, radius + 0.6, radius + 1.1]) {
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const p = new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r);
+      if (gap(p) > gap(best)) best = p;
+    }
+    if (gap(best) >= REST_APART) return best;
+  }
+  return best;
+}
+
 // ---------------------------------------------------------------- the box --
 
 export interface Landing {
-  /** Index into CUBE / TETRA, as read off the die at rest. */
+  /** Index into CUBE / TETRA / SOLIDS, as read off the die at rest. */
   cube?: number;
   tetra?: number;
+  solid?: number;
   /** Where the cube came to rest, in page pixels relative to the canvas. */
   cubeAt?: { x: number; y: number };
   tetraAt?: { x: number; y: number };
+  solidAt?: { x: number; y: number };
 }
 
+/** Which dice, and onto which result (an index into CUBE / TETRA / SOLIDS). */
+export type Chosen = Partial<Record<Which, number>>;
+
 export interface Clearing {
-  /** Throw the named dice so they land on the chosen results. */
-  roll(chosen: { cube?: number; tetra?: number }): Promise<Landing>;
+  /** Throw the named dice so they land on the chosen results. A parked die is unparked first; a die off the table comes onto it. */
+  roll(chosen: Chosen): Promise<Landing>;
   /** Put the dice at rest on the chosen results, with no throw (reduced motion). */
-  place(chosen: { cube?: number; tetra?: number }): Landing;
+  place(chosen: Chosen): Landing;
   /**
    * Turn the named dice in place to show the given faces: a short, smooth
    * rotation, lifting just clear of the floor. No throw, no sound, no landing.
    * `ms` 0 turns at once. Resolves when they are still.
    */
-  turn(chosen: { cube?: number; tetra?: number }, ms: number): Promise<Landing>;
+  turn(chosen: Chosen, ms: number): Promise<Landing>;
   /**
    * Undecide the named dice: turn each to stand balanced on a corner (the cube
    * on a truncated corner, the tetrahedron on its point), showing nothing. The
    * same short, smooth motion as turn(): no sound, no landing. `ms` 0 is at once.
    */
-  unset(which: { cube?: boolean; tetra?: boolean }, ms: number): Promise<void>;
+  unset(which: Partial<Record<Which, boolean>>, ms: number): Promise<void>;
+  /**
+   * Lift the named dice off the Clearing to the parked row above its rim, still
+   * showing their faces; they take no part in a throw until unparked. `ms` 0 is at once.
+   */
+  park(which: Which[], ms: number): Promise<void>;
+  /** Bring parked dice (all, unless named) back down onto the Clearing, clear of the dice there. */
+  unpark(which: Which[] | undefined, ms: number): Promise<void>;
+  /** Where each die is. */
+  readonly table: DiceTable;
   /** Draw the ring and the shadows for this paper. */
   setPaper(paper: Paper): void;
   onImpact: (impact: Impact) => void;
@@ -834,12 +1054,13 @@ export function clearingScene(paper: Paper, ring = true) {
   sun.position.set(-5, 14, 7);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7 });
+  Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 });
   scene.add(sun);
 
   // the Clearing: the page's own paper shows through; only the shadows and the rings are drawn
   const shadow = new THREE.ShadowMaterial({ opacity: SHADOW[paper] });
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(RIM_RADIUS, 96), shadow);
+  // wide enough for the parked row beyond the rim: parked dice keep their shadows
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(-PARK_Z + 1.5, 96), shadow);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
@@ -879,14 +1100,17 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
 
   const cube = cubeMesh();
   const tetra = tetraMesh();
-  scene.add(cube.mesh, tetra.mesh);
-  const meshes: Record<Which, THREE.Mesh> = { cube: cube.mesh, tetra: tetra.mesh };
+  const solid = cubeMesh(true);
+  scene.add(cube.mesh, tetra.mesh, solid.mesh);
+  const meshes: Record<Which, THREE.Mesh> = { cube: cube.mesh, tetra: tetra.mesh, solid: solid.mesh };
 
   const letterTextures = CUBE.map(letterTexture);
   const tetraTextures = new Map<string, THREE.CanvasTexture>();
+  const solidTextures = SOLIDS.map(solidTexture);
 
   let cubeLabels = [...CUBE_BASE];
   let tetraLabels = [0, 1, 2, 3];
+  let solidLabels = [...SOLID_BASE];
 
   const applyLabels = () => {
     cube.faceMaterials.forEach((m, f) => {
@@ -901,10 +1125,18 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
       m.map = tetraTextures.get(key)!;
       m.needsUpdate = true;
     });
+    solid.faceMaterials.forEach((m, f) => {
+      m.map = solidTextures[solidLabels[f]];
+      m.needsUpdate = true;
+    });
   };
 
+  // where each die is; the solid die begins off the table, not drawn
+  const table = new DiceTable();
+  const showOnTable = () => DICE.forEach((w) => (meshes[w].visible = table.place[w] !== 'off'));
+
   // at rest before the first throw: side by side in the middle of the Clearing
-  const rest: Record<Which, Pose> = {
+  const rest: Record<'cube' | 'tetra', Pose> = {
     cube: { p: new THREE.Vector3(-1.5, CUBE_HALF, 0.3), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0.4, 0)) },
     tetra: { p: new THREE.Vector3(1.5, 0, -0.1), q: new THREE.Quaternion() },
   };
@@ -917,7 +1149,14 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
   };
   setPose('cube', rest.cube);
   setPose('tetra', rest.tetra);
+  setPose('solid', { p: new THREE.Vector3(0, CUBE_HALF, 0), q: new THREE.Quaternion() });
+  showOnTable();
   applyLabels();
+
+  /** Where a die lay on the Clearing when it was parked: it goes back there, if that is clear. */
+  const beforePark: Partial<Record<Which, THREE.Vector3>> = {};
+  /** The positions of the dice on the Clearing, but for `except`. */
+  const others = (except: readonly Which[]) => table.onTable().filter((w) => !except.includes(w)).map((w) => meshes[w].position.clone());
 
   const resize = () => {
     const { width, height } = host.getBoundingClientRect();
@@ -946,16 +1185,42 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
     return { x: ((v.x + 1) / 2) * width, y: ((1 - v.y) / 2) * height };
   };
 
-  /** Read the dice as they are drawn: the physical up faces, under their current labels. */
-  const read = (): Landing => {
-    const c = cubeUp(meshes.cube.quaternion);
-    const t = tetraUp(meshes.tetra.quaternion);
-    return {
-      cube: cubeLabels[c.face],
-      tetra: tetraLabels[t.vertex],
-      cubeAt: toScreen(meshes.cube.position),
-      tetraAt: toScreen(meshes.tetra.position),
-    };
+  /** Read the named dice as they are drawn: the physical up faces, under their current labels. */
+  const read = (which: Chosen): Landing => {
+    const out: Landing = {};
+    if (which.cube !== undefined) {
+      out.cube = cubeLabels[cubeUp(meshes.cube.quaternion).face];
+      out.cubeAt = toScreen(meshes.cube.position);
+    }
+    if (which.tetra !== undefined) {
+      out.tetra = tetraLabels[tetraUp(meshes.tetra.quaternion).vertex];
+      out.tetraAt = toScreen(meshes.tetra.position);
+    }
+    if (which.solid !== undefined) {
+      out.solid = solidLabels[cubeUp(meshes.solid.quaternion).face];
+      out.solidAt = toScreen(meshes.solid.position);
+    }
+    return out;
+  };
+
+  const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2); // in and out
+  /** Run `pose(k)` from 0 to 1 over `ms` (at once for 0), then draw. */
+  const animate = async (ms: number, pose: (k: number) => void, what: string) => {
+    if (ms > 0) {
+      await new Promise<void>((done) => {
+        const start = performance.now();
+        const tick = () => {
+          const k = Math.min(1, (performance.now() - start) / ms);
+          pose(k);
+          if (k >= 1 || destroyed) done();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+    }
+    if (destroyed) throw new Error(`The tray was destroyed during the ${what}`);
+    pose(1);
+    render();
   };
 
   /**
@@ -964,41 +1229,59 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
    * moves at once. A die already in its pose does not move.
    */
   const glide = async (targets: { w: Which; q1: THREE.Quaternion; y1: number }[], ms: number) => {
+    const moves = targets
+      .map((t) => ({ ...t, mesh: meshes[t.w], q0: meshes[t.w].quaternion.clone(), y0: meshes[t.w].position.y }))
+      .filter((m) => m.q0.angleTo(m.q1) > 1e-3 || Math.abs(m.y0 - m.y1) > 1e-4);
+    const LIFT: Record<Which, number> = { cube: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, solid: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, tetra: 0.2 };
+    await animate(moves.length ? ms : 0, (k) => {
+      const e = ease(k);
+      for (const m of moves) {
+        m.mesh.quaternion.copy(m.q0).slerp(m.q1, e);
+        m.mesh.position.y = m.y0 + (m.y1 - m.y0) * e + LIFT[m.w] * Math.sin(Math.PI * e);
+      }
+    }, 'turn');
+  };
+
+  /** Carry dice to new places across the Clearing: lifted in an arc, still showing the same faces. */
+  const carry = async (targets: { w: Which; to: THREE.Vector3 }[], ms: number) => {
+    const moves = targets.map((t) => ({ ...t, mesh: meshes[t.w], from: meshes[t.w].position.clone() }));
+    await animate(moves.length ? ms : 0, (k) => {
+      const e = ease(k);
+      for (const m of moves) {
+        m.mesh.position.lerpVectors(m.from, m.to, e);
+        m.mesh.position.y += 1.2 * Math.sin(Math.PI * e);
+      }
+    }, 'move');
+  };
+
+  /** Unpark the named dice (animated, `ms`), and put any off the table onto it at a clear spot (at once). */
+  const bring = async (which: Which[], ms: number) => {
+    const { unparked, appeared } = table.before(which);
+    for (const w of appeared) {
+      const spot = freeSpot(null, others([w]));
+      meshes[w].position.set(spot.x, isSix(w) ? CUBE_HALF : tetraRestHeight(meshes[w].quaternion), spot.z);
+    }
+    showOnTable();
+    await carry(unparked.map((w) => ({ w, to: backDown(w, unparked) })), ms);
+  };
+  /** Where a parked die comes back down: where it lay, if that is clear of the dice on the Clearing. */
+  const backDown = (w: Which, moving: Which[]) => {
+    const spot = freeSpot(beforePark[w] ?? null, others(moving));
+    return new THREE.Vector3(spot.x, meshes[w].position.y, spot.z);
+  };
+
+  const exclusive = async <T>(work: () => Promise<T>): Promise<T> => {
     if (playing) throw new Error('The dice are already rolling');
     playing = true;
     try {
-      const moves = targets
-        .map((t) => ({ ...t, mesh: meshes[t.w], q0: meshes[t.w].quaternion.clone(), y0: meshes[t.w].position.y }))
-        .filter((m) => m.q0.angleTo(m.q1) > 1e-3 || Math.abs(m.y0 - m.y1) > 1e-4);
-      const LIFT = { cube: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, tetra: 0.2 };
-      const pose = (k: number) => {
-        const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; // ease in and out
-        for (const m of moves) {
-          m.mesh.quaternion.copy(m.q0).slerp(m.q1, e);
-          m.mesh.position.y = m.y0 + (m.y1 - m.y0) * e + LIFT[m.w] * Math.sin(Math.PI * e);
-        }
-      };
-      if (moves.length && ms > 0) {
-        await new Promise<void>((done) => {
-          const start = performance.now();
-          const tick = () => {
-            const k = Math.min(1, (performance.now() - start) / ms);
-            pose(k);
-            if (k >= 1 || destroyed) done();
-            else requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        });
-      }
-      if (destroyed) throw new Error('The tray was destroyed during the turn');
-      pose(1);
-      render();
+      return await work();
     } finally {
       playing = false;
     }
   };
 
   const clearing: Clearing = {
+    table,
     setPaper(next) {
       // rings turned off stay off: there are none to recolour
       for (const m of ringMaterials) m.color.set(paperInk(next));
@@ -1011,8 +1294,11 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
     async roll(chosen) {
       if (playing) throw new Error('The dice are already rolling');
       playing = true;
-      const thrown = (['cube', 'tetra'] as Which[]).filter((w) => chosen[w] !== undefined);
-      const resting = { cube: { p: meshes.cube.position.clone(), q: meshes.cube.quaternion.clone() }, tetra: { p: meshes.tetra.position.clone(), q: meshes.tetra.quaternion.clone() } };
+      const thrown = DICE.filter((w) => chosen[w] !== undefined);
+      // a parked die is unparked first, a die off the table comes onto it: thrown in from the rim, both
+      table.before(thrown);
+      const resting: Partial<Record<Which, Pose>> = {};
+      for (const w of table.onTable()) if (!thrown.includes(w)) resting[w] = { p: meshes[w].position.clone(), q: meshes[w].quaternion.clone() };
 
       // 2. simulate unseen until the dice rest squarely, near the middle and apart
       const sim = throwUnseen(thrown, resting);
@@ -1022,87 +1308,107 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
       }
 
       // 3. label the dice so the faces that came up carry the chosen results
-      if (chosen.cube !== undefined) cubeLabels = cubeLabelling(cubeUp(sim.final[0].q).face, chosen.cube);
-      if (chosen.tetra !== undefined) tetraLabels = tetraLabelling(tetraUp(sim.final[1].q).vertex, chosen.tetra);
+      const final = (w: Which) => sim.final[DICE.indexOf(w)];
+      if (chosen.cube !== undefined) cubeLabels = cubeLabelling(cubeUp(final('cube').q).face, chosen.cube);
+      if (chosen.tetra !== undefined) tetraLabels = tetraLabelling(tetraUp(final('tetra').q).vertex, chosen.tetra);
+      if (chosen.solid !== undefined) solidLabels = solidLabelling(cubeUp(final('solid').q).face, chosen.solid);
       applyLabels();
 
       // 4. play the recorded throw back, in real time, with its impacts
-      const order: Which[] = ['cube', 'tetra'];
       const count = sim.frames[0].length / 7;
       const pa = new THREE.Vector3();
       const qa = new THREE.Quaternion();
       const qb = new THREE.Quaternion();
+      const poseAt = (w: Which, f: number) => {
+        const i = Math.floor(f);
+        const j = Math.min(count - 1, i + 1);
+        const k = f - i;
+        const fr = sim.frames[DICE.indexOf(w)];
+        pa.set(fr[i * 7], fr[i * 7 + 1], fr[i * 7 + 2]).lerp(new THREE.Vector3(fr[j * 7], fr[j * 7 + 1], fr[j * 7 + 2]), k);
+        qa.set(fr[i * 7 + 3], fr[i * 7 + 4], fr[i * 7 + 5], fr[i * 7 + 6]);
+        qb.set(fr[j * 7 + 3], fr[j * 7 + 4], fr[j * 7 + 5], fr[j * 7 + 6]);
+        meshes[w].position.copy(pa);
+        meshes[w].quaternion.copy(qa).slerp(qb, k);
+      };
+      thrown.forEach((w) => poseAt(w, 0));
+      showOnTable();
       await new Promise<void>((done) => {
         const start = performance.now();
         let nextImpact = 0;
         const tick = () => {
           const t = (performance.now() - start) / 1000;
           const f = Math.min(count - 1, t * (1 / (STEP * RECORD_EVERY)));
-          const i = Math.floor(f);
-          const j = Math.min(count - 1, i + 1);
-          const k = f - i;
-          order.forEach((w, d) => {
-            if (!thrown.includes(w)) return;
-            const fr = sim!.frames[d];
-            pa.set(fr[i * 7], fr[i * 7 + 1], fr[i * 7 + 2]).lerp(new THREE.Vector3(fr[j * 7], fr[j * 7 + 1], fr[j * 7 + 2]), k);
-            qa.set(fr[i * 7 + 3], fr[i * 7 + 4], fr[i * 7 + 5], fr[i * 7 + 6]);
-            qb.set(fr[j * 7 + 3], fr[j * 7 + 4], fr[j * 7 + 5], fr[j * 7 + 6]);
-            meshes[w].position.copy(pa);
-            meshes[w].quaternion.copy(qa).slerp(qb, k);
-          });
-          while (nextImpact < sim!.impacts.length && sim!.impacts[nextImpact].t <= t) clearing.onImpact(sim!.impacts[nextImpact++]);
-          if (i >= count - 1 || destroyed) done();
+          thrown.forEach((w) => poseAt(w, f));
+          while (nextImpact < sim.impacts.length && sim.impacts[nextImpact].t <= t) clearing.onImpact(sim.impacts[nextImpact++]);
+          if (f >= count - 1 || destroyed) done();
           else requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       });
       if (destroyed) throw new Error('The tray was destroyed during the throw');
-      order.forEach((w, d) => thrown.includes(w) && setPose(w, sim!.final[d]));
+      thrown.forEach((w) => setPose(w, final(w)));
       render();
       playing = false;
       clearing.onLand();
 
       // 5. what the dice show, read off the dice themselves
-      const shown = read();
-      return {
-        ...(chosen.cube !== undefined ? { cube: shown.cube, cubeAt: shown.cubeAt } : {}),
-        ...(chosen.tetra !== undefined ? { tetra: shown.tetra, tetraAt: shown.tetraAt } : {}),
-      };
+      return read(chosen);
     },
 
     async turn(chosen, ms) {
-      await glide(
-        (['cube', 'tetra'] as Which[])
-          .filter((w) => chosen[w] !== undefined)
-          .map((w) => {
+      const which = DICE.filter((w) => chosen[w] !== undefined);
+      await exclusive(async () => {
+        await bring(which, ms);
+        await glide(
+          which.map((w) => {
             const q = meshes[w].quaternion;
-            const q1 = w === 'cube' ? cubeTurnTo(q, cubeLabels, chosen.cube!) : tetraTurnTo(q, tetraLabels, chosen.tetra!);
-            return { w, q1, y1: w === 'cube' ? CUBE_HALF : tetraRestHeight(q1) };
+            if (w === 'tetra') {
+              const q1 = tetraTurnTo(q, tetraLabels, chosen.tetra!);
+              return { w, q1, y1: tetraRestHeight(q1) };
+            }
+            const q1 = cubeTurnTo(q, w === 'cube' ? cubeLabels : solidLabels, chosen[w]!);
+            return { w, q1, y1: CUBE_HALF };
           }),
-        ms,
-      );
-      const shown = read();
-      return {
-        ...(chosen.cube !== undefined ? { cube: shown.cube, cubeAt: shown.cubeAt } : {}),
-        ...(chosen.tetra !== undefined ? { tetra: shown.tetra, tetraAt: shown.tetraAt } : {}),
-      };
+          ms,
+        );
+      });
+      return read(chosen);
     },
 
     async unset(which, ms) {
-      await glide(
-        (['cube', 'tetra'] as Which[])
-          .filter((w) => which[w])
-          .map((w) => {
+      const named = DICE.filter((w) => which[w]);
+      await exclusive(async () => {
+        await bring(named, ms);
+        await glide(
+          named.map((w) => {
             const q = meshes[w].quaternion;
-            return w === 'cube'
-              ? { w, q1: cubeUnsetTo(q), y1: CUBE_CORNER_HEIGHT }
-              : { w, q1: tetraUnsetTo(q), y1: TETRA_POINT_HEIGHT };
+            return w === 'tetra' ? { w, q1: tetraUnsetTo(q), y1: TETRA_POINT_HEIGHT } : { w, q1: cubeUnsetTo(q), y1: CUBE_CORNER_HEIGHT };
           }),
-        ms,
-      );
+          ms,
+        );
+      });
+    },
+
+    async park(which, ms) {
+      await exclusive(async () => {
+        const moved = table.park(which);
+        for (const w of moved) beforePark[w] = meshes[w].position.clone();
+        await carry(moved.map((w) => ({ w, to: new THREE.Vector3(PARK_X[w], meshes[w].position.y, PARK_Z) })), ms);
+      });
+    },
+
+    async unpark(which, ms) {
+      await exclusive(async () => {
+        const moved = table.unpark(which ?? DICE);
+        await carry(moved.map((w) => ({ w, to: backDown(w, moved) })), ms);
+      });
     },
 
     place(chosen) {
+      const which = DICE.filter((w) => chosen[w] !== undefined);
+      // at once: a parked die comes straight back down, a die off the table appears
+      const { unparked, appeared } = table.before(which);
+      for (const w of unparked) meshes[w].position.copy(backDown(w, unparked));
       if (chosen.cube !== undefined) {
         cubeLabels = [...CUBE_BASE];
         const face = CUBE_BASE.indexOf(chosen.cube);
@@ -1115,14 +1421,19 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
         const y = -Math.min(...TETRA_VERTS.map((v) => new THREE.Vector3(...v).applyQuaternion(q).y));
         setPose('tetra', { p: new THREE.Vector3(rest.tetra.p.x, y, rest.tetra.p.z), q });
       }
+      if (chosen.solid !== undefined) {
+        solidLabels = [...SOLID_BASE];
+        const face = SOLID_BASE.indexOf(chosen.solid);
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(...CUBE_FACES[face].n), new THREE.Vector3(0, 1, 0));
+        // where it lies, or, just come onto the table, clear of the others
+        const spot = appeared.includes('solid') ? freeSpot(null, others(['solid'])) : meshes.solid.position.clone();
+        setPose('solid', { p: new THREE.Vector3(spot.x, CUBE_HALF, spot.z), q });
+      }
+      showOnTable();
       applyLabels();
       render();
       clearing.onLand();
-      const shown = read();
-      return {
-        ...(chosen.cube !== undefined ? { cube: shown.cube, cubeAt: shown.cubeAt } : {}),
-        ...(chosen.tetra !== undefined ? { tetra: shown.tetra, tetraAt: shown.tetraAt } : {}),
-      };
+      return read(chosen);
     },
   };
   clearing.destroy = () => {
@@ -1130,7 +1441,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
     destroyed = true;
     cancelAnimationFrame(frame);
     observer.disconnect();
-    const textures = new Set<THREE.Texture>([...letterTextures, ...tetraTextures.values()]);
+    const textures = new Set<THREE.Texture>([...letterTextures, ...tetraTextures.values(), ...solidTextures]);
     scene.traverse((o) => {
       const mesh = o as THREE.Mesh;
       mesh.geometry?.dispose();

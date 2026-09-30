@@ -1,7 +1,7 @@
 // The Head Porter's line in the threshold form, and the student's orientation
 // line, both built from the faces alone.
 
-import type { School, SubStance } from './faces';
+import { geocodeFor, type School, type Solid, type SubStance } from './faces';
 
 /** Who stands in the Clearing with the student. Left out: Sam, as always. `null` or empty: alone. */
 export interface Company {
@@ -36,4 +36,18 @@ export function orientationLine(school: School | null, sub: SubStance | null): s
     'My stance towards the Clearing is that of a Reader in the Library of Thyngs, ' +
     `through ${school ? skhoolSlot(school) : '[Skhool]'}, and I am ${sub ? subStanceSlot(sub) : '[sub-stance]'}, with Sam.`
   );
+}
+
+/**
+ * Where the solid die sends the student, from the Skhool the cube chose:
+ * "You are bound for GI, in the Mountains." The Sphere is the Clearing itself:
+ * "You return to the Clearing, facing the gate of WEAVE." Hall names come from
+ * the host later; for now the Hall is named by its geocode. The preposition is
+ * the halls table's biome_prep: at the River, in every other ring.
+ */
+export function hallLine(school: School, solid: Solid): string {
+  const geocode = geocodeFor(school.facultyLetter, solid.code);
+  if (geocode === null) return `You return to the Clearing, facing the gate of ${school.faculty}.`;
+  const prep = solid.place === 'River' ? 'at' : 'in';
+  return `You are bound for ${geocode}, ${prep} the ${solid.place}.`;
 }

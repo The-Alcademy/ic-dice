@@ -12,14 +12,31 @@ export declare const CUBE_FACES: {
  * Opposite spokes of the mandala are opposite faces: R/I, P/W, S/A.
  */
 export declare const CUBE_BASE: number[];
+/**
+ * The solid die's base labelling: which solid (index into SOLIDS) is on which
+ * face. Opposite faces sum to ring 5, as a real die's sum to 7: Sphere/Icosahedron,
+ * Tetrahedron/Dodecahedron, Hexahedron/Octahedron.
+ */
+export declare const SOLID_BASE: number[];
+/**
+ * A solid as drawn on a face of the solid die: the edges of its faces turned
+ * towards the viewer, in 2D, fitted to a unit box centred on 0,0 (y down, as a
+ * canvas draws). The Sphere has no edges: its outline and one great circle are
+ * drawn instead (see solidTexture).
+ */
+export declare function solidDrawing(code: string): [number, number, number, number][];
 /** A labelling of the cube's faces that puts School `chosen` on face `up`: the base labelling turned by one of the cube's 24 rotations, never permuted freely, so R/I, P/W and S/A stay opposite on every throw. */
 export declare function cubeLabelling(up: number, chosen: number): number[];
+/** The same for the solid die: the solid `chosen` on face `up`, opposite faces still summing to ring 5. */
+export declare function solidLabelling(up: number, chosen: number): number[];
 /** A labelling of the tetrahedron's vertices that puts sub-stance `chosen` on vertex `up`: a half-turn about an edge axis, so an even permutation — a rotation, not a mirror image. */
 export declare function tetraLabelling(up: number, chosen: number): number[];
 /** The inner circle drawn on the Clearing. */
 export declare const INNER_RADIUS: number;
 /** Every die rests with its centre this close to the middle. */
 export declare const REST_WITHIN = 2.8;
+/** With three dice on the Clearing, the spots move out, and so may the dice: there is not room for three within REST_WITHIN, REST_APART apart. */
+export declare const REST_WITHIN_THREE = 3.5;
 /** The two dice rest with their centres at least this far apart (touching needs 2.4 at most: the cube's corner and the tetrahedron's point; 3 leaves a clear gap). */
 export declare const REST_APART = 3;
 export interface Impact {
@@ -38,10 +55,14 @@ export interface Simulation {
     final: Pose[];
     /** Every thrown die was truly still when the recording ended. */
     settled: boolean;
-    /** The two dice were in contact at the end: one leaning on, or lying against, the other. */
+    /** Two dice were in contact at the end: one leaning on, or lying against, another. */
     touching: boolean;
+    /** The dice on the Clearing during the throw: those thrown, and those lying there. */
+    present: Which[];
 }
-export type Which = 'cube' | 'tetra';
+export type Which = 'cube' | 'tetra' | 'solid';
+/** The three dice, in the order a simulation records them. */
+export declare const DICE: readonly Which[];
 export declare function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation;
 /**
  * A throw worth showing: every thrown die still and squarely on a face, every
@@ -86,10 +107,43 @@ export declare function tetraShows(q: THREE.Quaternion, labels: number[]): {
     label: number;
     flat: number;
 };
+/** Where a die is: off the table (not drawn), on the Clearing, or parked above its rim. */
+export type Place = 'off' | 'table' | 'parked';
+/**
+ * Which die is where, and what must happen before a die is thrown, shown or
+ * unset. The state machine alone: no drawing, no animation. The MetaMind cube and
+ * the tetrahedron begin on the Clearing; the solid die begins off the table.
+ */
+export declare class DiceTable {
+    readonly place: Record<Which, Place>;
+    /** The dice lying on the Clearing: the ones a throw lands among. */
+    onTable(): Which[];
+    /** Park the named dice that are on the Clearing; returns those that move. A die off the table stays off. */
+    park(which: readonly Which[]): Which[];
+    /** Bring parked dice back onto the Clearing (all of them, unless named); returns those that move. */
+    unpark(which?: readonly Which[]): Which[];
+    /**
+     * Before the named dice are thrown, shown or unset: a parked die is unparked
+     * first, and a die off the table comes onto it. Every named die is then on the table.
+     */
+    before(which: readonly Which[]): {
+        unparked: Which[];
+        appeared: Which[];
+    };
+}
+/** The parked row: just above the Clearing's rim, as the page is seen, the dice side by side. */
+export declare const PARK_Z: number;
+/**
+ * A place on the Clearing for a die: `preferred` if it is REST_APART from every
+ * die in `avoid`; else the first point clear of them on a circle round the
+ * middle, widening the circle if it must; else the point farthest from them.
+ */
+export declare function freeSpot(preferred: THREE.Vector3 | null, avoid: THREE.Vector3[], radius?: number): THREE.Vector3;
 export interface Landing {
-    /** Index into CUBE / TETRA, as read off the die at rest. */
+    /** Index into CUBE / TETRA / SOLIDS, as read off the die at rest. */
     cube?: number;
     tetra?: number;
+    solid?: number;
     /** Where the cube came to rest, in page pixels relative to the canvas. */
     cubeAt?: {
         x: number;
@@ -99,36 +153,39 @@ export interface Landing {
         x: number;
         y: number;
     };
+    solidAt?: {
+        x: number;
+        y: number;
+    };
 }
+/** Which dice, and onto which result (an index into CUBE / TETRA / SOLIDS). */
+export type Chosen = Partial<Record<Which, number>>;
 export interface Clearing {
-    /** Throw the named dice so they land on the chosen results. */
-    roll(chosen: {
-        cube?: number;
-        tetra?: number;
-    }): Promise<Landing>;
+    /** Throw the named dice so they land on the chosen results. A parked die is unparked first; a die off the table comes onto it. */
+    roll(chosen: Chosen): Promise<Landing>;
     /** Put the dice at rest on the chosen results, with no throw (reduced motion). */
-    place(chosen: {
-        cube?: number;
-        tetra?: number;
-    }): Landing;
+    place(chosen: Chosen): Landing;
     /**
      * Turn the named dice in place to show the given faces: a short, smooth
      * rotation, lifting just clear of the floor. No throw, no sound, no landing.
      * `ms` 0 turns at once. Resolves when they are still.
      */
-    turn(chosen: {
-        cube?: number;
-        tetra?: number;
-    }, ms: number): Promise<Landing>;
+    turn(chosen: Chosen, ms: number): Promise<Landing>;
     /**
      * Undecide the named dice: turn each to stand balanced on a corner (the cube
      * on a truncated corner, the tetrahedron on its point), showing nothing. The
      * same short, smooth motion as turn(): no sound, no landing. `ms` 0 is at once.
      */
-    unset(which: {
-        cube?: boolean;
-        tetra?: boolean;
-    }, ms: number): Promise<void>;
+    unset(which: Partial<Record<Which, boolean>>, ms: number): Promise<void>;
+    /**
+     * Lift the named dice off the Clearing to the parked row above its rim, still
+     * showing their faces; they take no part in a throw until unparked. `ms` 0 is at once.
+     */
+    park(which: Which[], ms: number): Promise<void>;
+    /** Bring parked dice (all, unless named) back down onto the Clearing, clear of the dice there. */
+    unpark(which: Which[] | undefined, ms: number): Promise<void>;
+    /** Where each die is. */
+    readonly table: DiceTable;
     /** Draw the ring and the shadows for this paper. */
     setPaper(paper: Paper): void;
     onImpact: (impact: Impact) => void;

@@ -1,5 +1,5 @@
-// The two dice's faces: the single source of truth for the page, the Porter's
-// line, and the tests. Nothing else in the app spells a School or a sub-room.
+// The three dice's faces: the single source of truth for the page, the Porter's
+// line, and the tests. Nothing else in the app spells a School, a sub-room or a solid.
 
 export type SchoolLetter = 'R' | 'P' | 'S' | 'I' | 'W' | 'A';
 /** The Skhool a MetaMind throw lands on, by its Faculty's initial (the IC apps' name for it). */
@@ -105,6 +105,56 @@ export function schoolByLetter(letter: SchoolLetter): School {
   const found = CUBE.find((s) => s.facultyLetter === letter);
   if (!found) throw new Error(`No School ${letter} on the cube`);
   return found;
+}
+
+/** A solid's letter, as it ends a Hall's geocode (GI: WEAVE's Icosahedron). */
+export type SolidCode = 'S' | 'T' | 'H' | 'O' | 'D' | 'I';
+
+export interface Solid {
+  code: SolidCode;
+  name: string;
+  /** How many faces the solid has: none for the Sphere. */
+  faces: number;
+  /** Its ring outward from the Clearing: 0 for the Sphere, which is the Clearing. */
+  ring: number;
+  /** Where the ring lies: the Clearing, or its biome. */
+  place: string;
+}
+
+/**
+ * The solid die: a hexahedron whose six faces are the six places a Skhool leads
+ * to, the Clearing (the Sphere) and the five Platonic solids, ring by ring.
+ * Opposite faces sum to ring 5, as a real die's sum to 7: Sphere/Icosahedron,
+ * Tetrahedron/Dodecahedron, Hexahedron/Octahedron.
+ */
+export const SOLIDS: readonly Solid[] = [
+  { code: 'S', name: 'Sphere', faces: 0, ring: 0, place: 'the Clearing' },
+  { code: 'T', name: 'Tetrahedron', faces: 4, ring: 1, place: 'Forest' },
+  { code: 'H', name: 'Hexahedron', faces: 6, ring: 2, place: 'Meadowland' },
+  { code: 'O', name: 'Octahedron', faces: 8, ring: 3, place: 'River' },
+  { code: 'D', name: 'Dodecahedron', faces: 12, ring: 4, place: 'Foothills' },
+  { code: 'I', name: 'Icosahedron', faces: 20, ring: 5, place: 'Mountains' },
+];
+
+export function solidByCode(code: string): Solid {
+  const found = SOLIDS.find((s) => s.code === code);
+  if (!found) throw new Error(`No solid "${code}" on the solid die: it is one of ${SOLIDS.map((s) => s.code).join(', ')}`);
+  return found;
+}
+
+/** A Faculty's colour letter, as a Hall's geocode begins (ic-house-style's colourLetter). */
+const COLOUR_LETTER: Record<SchoolLetter, string> = { P: 'R', S: 'O', I: 'Y', W: 'G', A: 'B', R: 'P' };
+
+/**
+ * The Hall a Skhool and a solid lead to: its colour letter, then the solid's
+ * letter (WEAVE + Icosahedron = GI, the Wilderness). The Sphere is the Clearing,
+ * not a Hall: null.
+ */
+export function geocodeFor(facultyLetter: SchoolLetter, solidCode: SolidCode): string | null {
+  const colour = COLOUR_LETTER[facultyLetter];
+  if (!colour) throw new Error(`No School ${String(facultyLetter)} on the cube`);
+  const solid = solidByCode(solidCode);
+  return solid.code === 'S' ? null : colour + solid.code;
 }
 
 export function subStanceByVerb(verb: string): SubStance {

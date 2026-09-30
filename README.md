@@ -115,12 +115,91 @@ tray.destroy(); // releases WebGL, audio and listeners, and empties the element
 - The sounds and the font are `data:` URLs. A host with a Content Security
   Policy needs `media-src data:` and `font-src data:`.
 
-The package also exports the faces (`CUBE`, `TETRA`, `schoolByLetter`, the
-`SkhoolLetter` and `SubStance` types) and the Porter's lines
-(`thresholdLine`, `orientationLine`).
+### The solid die, and parking
 
-The faces alone are `ic-dice/faces` (`dist/faces.js`, about 2.5 kB): `CUBE`,
-`TETRA`, `schoolByLetter` and their types, as plain data with no imports, no
+A third die, the **solid die**, chooses which solid is inspected: which of the
+places a Skhool leads to. It is a hexahedron like the MetaMind cube, truncated
+at the corners the same way, but in darker stained wood, with an ink drawing of
+a solid on each face and no letters. Its six faces are the six places: the
+Clearing (the Sphere, a circle with one great circle) and the five Platonic
+solids, one per ring. Opposite faces sum to ring 5, as a real die's sum to 7:
+Sphere and Icosahedron, Tetrahedron and Dodecahedron, Hexahedron and Octahedron.
+Its result is chosen first and it lands on it by the same relabelling as the
+other two dice.
+
+A Skhool and a solid make a Hall's geocode, the colour letter then the solid
+letter: WEAVE and the Icosahedron is `GI`, the Wilderness.
+
+- `roll({ solid: 'random' })`, or a code (`'S' 'T' 'H' 'O' 'D' 'I'`), throws it;
+  `show({ solid: 'O' })` turns it to a face; `unset({ solid: true })` undecides
+  it. The result carries `solid: SolidCode`, and `onChosen` gets it before the
+  die moves. A code that is not on the die is refused at once with a clear
+  error (`No solid "X" on the solid die: it is one of S, T, H, O, D, I`).
+- The solid die starts **off the table**, not drawn, until it is first rolled,
+  shown or unset.
+- `park({ skhool: true, subStance: true })` lifts the named dice and carries
+  them smoothly (about 450 ms; at once under reduced motion) to a row just
+  above the Clearing's rim, still showing their faces. Parked dice take no part
+  in a throw. `unpark()` brings them all back down, where they lay if that is
+  clear, else to a clear spot. A later `roll()`, `show()` or `unset()` of a
+  parked die unparks it first.
+- The parked row sits just beyond the rim's far edge. At the default
+  `clearingSize` the rim nearly fills the element, so the row is outside it;
+  give `clearingSize` about `0.7` or less to see the parked dice.
+- With all three dice on the Clearing (none parked), a throw lands among the
+  others, clear of both, a little farther from the middle.
+
+The whole sequence, as the demo runs it:
+
+```ts
+import { mountDiceTray, schoolByLetter, solidByCode, hallLine, geocodeFor } from 'ic-dice';
+
+const tray = mountDiceTray(el, { ring: false, clearingSize: 0.6 });
+
+// 1. the Skhool and the sub-stance
+const { skhool, subStance } = await tray.roll({ skhool: 'random', subStance: 'random' });
+
+// 2. park them above the Clearing, still showing their faces
+await tray.park({ skhool: true, subStance: true });
+
+// 3. the solid die, alone on the Clearing
+const { solid } = await tray.roll({ solid: 'random' });
+geocodeFor(skhool!, solid!); // 'GI', or null for the Sphere (the Clearing)
+hallLine(schoolByLetter(skhool!), solidByCode(solid!)); // "You are bound for GI, in the Mountains."
+
+// later: bring the first two back (or throw one of them: it unparks itself)
+await tray.unpark();
+```
+
+The package also exports the faces (`CUBE`, `TETRA`, `schoolByLetter`, the
+`SkhoolLetter` and `SubStance` types), the solids (`SOLIDS`, `solidByCode`,
+`geocodeFor`, the `Solid` and `SolidCode` types) and the Porter's lines
+(`thresholdLine`, `orientationLine`, `hallLine`).
+
+- `SOLIDS` is the single source of truth for the solid die, in order:
+
+  | Code | Solid | Faces | Ring | Place |
+  |---|---|---|---|---|
+  | S | Sphere | 0 | 0 | the Clearing |
+  | T | Tetrahedron | 4 | 1 | Forest |
+  | H | Hexahedron | 6 | 2 | Meadowland |
+  | O | Octahedron | 8 | 3 | River |
+  | D | Dodecahedron | 12 | 4 | Foothills |
+  | I | Icosahedron | 20 | 5 | Mountains |
+
+- `solidByCode(code)` finds a solid, and throws a clear error for anything else.
+- `geocodeFor(facultyLetter, solidCode)` is the Hall's geocode: the Faculty's
+  colour letter (P→R, S→O, I→Y, W→G, A→B, R→P) then the solid's letter.
+  `geocodeFor('W', 'I')` is `'GI'`, `geocodeFor('S', 'O')` is `'OO'`. The
+  Sphere is the Clearing, not a Hall: `null`.
+- `hallLine(school, solid)` is the Porter's line for where the dice send the
+  student: `"You are bound for GI, in the Mountains."` (at the River, in every
+  other ring, as the halls table's `biome_prep` has it), or, for the Sphere,
+  `"You return to the Clearing, facing the gate of WEAVE."` Hall names will come
+  from the host; for now a Hall is named by its geocode.
+
+The faces alone are `ic-dice/faces` (`dist/faces.js`, about 3.5 kB): `CUBE`,
+`TETRA`, `schoolByLetter`, `SOLIDS`, `solidByCode`, `geocodeFor` and their types, as plain data with no imports, no
 three.js, no cannon-es and no browser code, so a server function can read the
 Schools and sub-stances without loading the tray:
 
@@ -135,15 +214,15 @@ schoolByLetter('A').gloss; // "test reality and name what's true"
 |---|---|
 | `src/index.ts` | The package entry. |
 | `src/tray.ts` | `mountDiceTray`: the roller as a mountable module, with its sounds, font, ripple and result check. |
-| `src/faces.ts` | The single source of truth: the six Schools and the four sub-stances, exactly as given. Also built alone as `dist/faces.js` (`ic-dice/faces`). |
-| `src/porter.ts` | The Head Porter's threshold line, and the orientation line's slots. |
-| `src/dice.ts` | The dice, the Clearing, the physics and the predetermined landing. |
-| `src/main.ts` | The demo page, mounting the tray as a host would: the slots, the Porter, the sound toggle. |
+| `src/faces.ts` | The single source of truth: the six Schools, the four sub-stances and the six solids, exactly as given, with `geocodeFor`. Also built alone as `dist/faces.js` (`ic-dice/faces`). |
+| `src/porter.ts` | The Head Porter's threshold line and hall line, and the orientation line's slots. |
+| `src/dice.ts` | The three dice, the Clearing, the physics, the predetermined landing, and where each die is (on the Clearing, parked, or off the table). |
+| `src/main.ts` | The demo page, mounting the tray as a host would: the slots, the Porter, the sound toggle, and the full sequence with the solid die. |
 | `index.html` | The demo page and its styles. |
 | `src/sounds/` | The dice sounds; `ATTRIBUTION.md` credits them. |
 | `src/fonts/` | Jost (latin, variable), byte for byte as Google Fonts serves it, with its OFL licence. |
 | `dist/` | The built package, committed: `ic-dice.js` and `types/`. |
-| `tests/` | Faces, the Porter, the relabelling, and the package itself. |
+| `tests/` | Faces, the solids, the Porter, the relabelling, the table's state, and the package itself. |
 
 ## Route taken: three + cannon-es, not dice-box-threejs
 

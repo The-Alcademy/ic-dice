@@ -45,4 +45,30 @@ export declare const INK_ON_DARK = "#eae2d0";
 export type Paper = 'light' | 'dark';
 export declare const WRITTEN = "#2B5468";
 export declare function schoolByLetter(letter: SchoolLetter): School;
+/** A solid's letter, as it ends a Hall's geocode (GI: WEAVE's Icosahedron). */
+export type SolidCode = 'S' | 'T' | 'H' | 'O' | 'D' | 'I';
+export interface Solid {
+    code: SolidCode;
+    name: string;
+    /** How many faces the solid has: none for the Sphere. */
+    faces: number;
+    /** Its ring outward from the Clearing: 0 for the Sphere, which is the Clearing. */
+    ring: number;
+    /** Where the ring lies: the Clearing, or its biome. */
+    place: string;
+}
+/**
+ * The solid die: a hexahedron whose six faces are the six places a Skhool leads
+ * to, the Clearing (the Sphere) and the five Platonic solids, ring by ring.
+ * Opposite faces sum to ring 5, as a real die's sum to 7: Sphere/Icosahedron,
+ * Tetrahedron/Dodecahedron, Hexahedron/Octahedron.
+ */
+export declare const SOLIDS: readonly Solid[];
+export declare function solidByCode(code: string): Solid;
+/**
+ * The Hall a Skhool and a solid lead to: its colour letter, then the solid's
+ * letter (WEAVE + Icosahedron = GI, the Wilderness). The Sphere is the Clearing,
+ * not a Hall: null.
+ */
+export declare function geocodeFor(facultyLetter: SchoolLetter, solidCode: SolidCode): string | null;
 export declare function subStanceByVerb(verb: string): SubStance;

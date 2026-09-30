@@ -2,6 +2,8 @@
 //
 //   const tray = mountDiceTray(el, { onChosen: (r) => daybook.log(r) });
 //   const landed = await tray.roll({ skhool: 'random', subStance: 'random' });
+//   await tray.park({ skhool: true, subStance: true });
+//   const { solid } = await tray.roll({ solid: 'random' }); // the Hall's solid
 //   tray.destroy();
 //
 // Framework-free, and it touches nothing outside `el`: it draws into a canvas
@@ -10,8 +12,8 @@
 // copies no files. The one thing it adds outside `el` is that font, to
 // document.fonts, and destroy() takes it away again.
 
-import { CUBE, TETRA, type Paper, type School, type SkhoolLetter, type SubStance } from './faces';
-import { createClearing, paperInk, type Clearing, type Impact, type Landing } from './dice';
+import { CUBE, TETRA, SOLIDS, type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
+import { createClearing, paperInk, type Chosen, type Clearing, type Impact, type Landing, type Which } from './dice';
 import jostUrl from './fonts/jost-variable-latin.woff2?url';
 
 // The sounds, one module each, inlined by the build (see src/sounds/ATTRIBUTION.md).
@@ -24,28 +26,39 @@ const byNumber = (files: Record<string, string>) =>
     .map(([, url]) => url);
 const SOUNDS = { clack: byNumber(clacks), tray: byNumber(trays), land: byNumber(knocks) };
 
-export type { SkhoolLetter, SubStance };
+export type { SkhoolLetter, SolidCode, SubStance };
 
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
   skhool?: SkhoolLetter | 'random';
   subStance?: SubStance | 'random';
+  /** The solid die: the Hall's solid, or the Sphere for the Clearing. */
+  solid?: SolidCode | 'random';
 }
 
 /** What was thrown: chosen before the throw, and shown by the dice after it. */
 export interface RollResult {
   skhool?: SkhoolLetter;
   subStance?: SubStance;
+  solid?: SolidCode;
 }
 
 /** Which dice to turn, and to which face. A face must be given: showing is not choosing. */
 export interface ShowPick {
   skhool?: SkhoolLetter;
   subStance?: SubStance;
+  solid?: SolidCode;
 }
 
 /** Which dice to undecide. */
 export interface UnsetPick {
+  skhool?: true;
+  subStance?: true;
+  solid?: true;
+}
+
+/** Which dice to park above the Clearing: the first two, so the solid die has the Clearing to itself. */
+export interface ParkPick {
   skhool?: true;
   subStance?: true;
 }
@@ -94,11 +107,82 @@ export interface DiceTray {
    * Skhool takes its colour off the ripples: ink until another is thrown or set.
    */
   unset(pick: UnsetPick): Promise<void>;
+  /**
+   * Park the named dice: each lifts and moves smoothly (at once under reduced
+   * motion) to a row just above the Clearing's rim, still showing its face, and
+   * takes no part in the next throw. A later roll(), show() or unset() of a
+   * parked die unparks it first. Nothing is chosen: no sound, no onChosen.
+   */
+  park(pick: ParkPick): Promise<void>;
+  /** Bring every parked die back down onto the Clearing, clear of the dice there. */
+  unpark(): Promise<void>;
   setSound(on: boolean): void;
   /** Redraw the ring, shadows and later ripples for this paper, e.g. when the page's light/dark setting changes. */
   setPaper(paper: Paper): void;
   /** Release WebGL, audio and listeners, and empty `el` of everything the tray put there. */
   destroy(): void;
+}
+
+/** The index of a solid on the solid die, or a clear error for a code that is not one. */
+function solidIndex(code: unknown): number {
+  const i = SOLIDS.findIndex((s) => s.code === code);
+  if (i < 0) throw new Error(`No solid ${JSON.stringify(code)} on the solid die: it is one of ${SOLIDS.map((s) => s.code).join(', ')}`);
+  return i;
+}
+
+/**
+ * A roll's result, chosen before a die moves (random ones from the CSPRNG), and
+ * which face of which die carries it. Throws on a face that is not on its die.
+ */
+export function chooseRoll(pick: RollPick): { chosen: Chosen; result: RollResult } {
+  const chosen: Chosen = {};
+  if (pick.skhool !== undefined) {
+    chosen.cube = pick.skhool === 'random' ? chooseIndex(CUBE.length) : CUBE.findIndex((s) => s.facultyLetter === pick.skhool);
+    if (chosen.cube < 0) throw new Error(`No School ${String(pick.skhool)} on the cube`);
+  }
+  if (pick.subStance !== undefined) {
+    const sub = pick.subStance;
+    chosen.tetra = sub === 'random' ? chooseIndex(TETRA.length) : TETRA.findIndex((t) => t === sub || t.room === sub.room);
+    if (chosen.tetra < 0) throw new Error(`No sub-stance ${sub === 'random' ? sub : sub.room} on the tetrahedron`);
+  }
+  if (pick.solid !== undefined) chosen.solid = pick.solid === 'random' ? chooseIndex(SOLIDS.length) : solidIndex(pick.solid);
+  return { chosen, result: resultOf(chosen) };
+}
+
+/** Which faces a show() turns to. Throws on a face that is not on its die. */
+export function chooseShow(pick: ShowPick): Chosen {
+  const chosen: Chosen = {};
+  if (pick.skhool !== undefined) {
+    chosen.cube = CUBE.findIndex((s) => s.facultyLetter === pick.skhool);
+    if (chosen.cube < 0) throw new Error(`No School ${String(pick.skhool)} on the cube`);
+  }
+  if (pick.subStance !== undefined) {
+    const sub = pick.subStance;
+    chosen.tetra = TETRA.findIndex((t) => t === sub || t.room === sub.room);
+    if (chosen.tetra < 0) throw new Error(`No sub-stance ${sub.room} on the tetrahedron`);
+  }
+  if (pick.solid !== undefined) chosen.solid = solidIndex(pick.solid);
+  return chosen;
+}
+
+/** Which dice an unset() undecides. Each is named with `true`; a face given instead is an error. */
+export function chooseUnset(pick: UnsetPick): Partial<Record<Which, boolean>> {
+  for (const [key, value] of Object.entries(pick)) {
+    if (value !== undefined && value !== true) {
+      if (key === 'solid') solidIndex(value); // an unknown code says so first
+      throw new Error(`unset() takes ${key}: true, not ${JSON.stringify(value)}: undeciding a die names no face`);
+    }
+  }
+  return { cube: pick.skhool === true, tetra: pick.subStance === true, solid: pick.solid === true };
+}
+
+/** What the dice show, as the tray reports it. */
+function resultOf(shown: { cube?: number; tetra?: number; solid?: number }): RollResult {
+  return {
+    ...(shown.cube !== undefined ? { skhool: CUBE[shown.cube].facultyLetter } : {}),
+    ...(shown.tetra !== undefined ? { subStance: TETRA[shown.tetra] } : {}),
+    ...(shown.solid !== undefined ? { solid: SOLIDS[shown.solid].code } : {}),
+  };
 }
 
 /** An index in [0, n), from the platform's CSPRNG, without modulo bias. */
@@ -211,24 +295,10 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
 
   const tray: DiceTray = {
     async roll(pick) {
+      // the result first, so a host can log it before a die leaves the hand; a face not on its die is refused at once
+      const { chosen, result } = chooseRoll(pick);
       await ready;
       if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
-
-      // the result first, so a host can log it before a die leaves the hand
-      const chosen: { cube?: number; tetra?: number } = {};
-      if (pick.skhool !== undefined) {
-        chosen.cube = pick.skhool === 'random' ? chooseIndex(CUBE.length) : CUBE.findIndex((s) => s.facultyLetter === pick.skhool);
-        if (chosen.cube < 0) throw new Error(`No School ${String(pick.skhool)} on the cube`);
-      }
-      if (pick.subStance !== undefined) {
-        const sub = pick.subStance;
-        chosen.tetra = sub === 'random' ? chooseIndex(TETRA.length) : TETRA.findIndex((t) => t === sub || t.room === sub.room);
-        if (chosen.tetra < 0) throw new Error(`No sub-stance ${sub === 'random' ? sub : sub.room} on the tetrahedron`);
-      }
-      const result: RollResult = {
-        ...(chosen.cube !== undefined ? { skhool: CUBE[chosen.cube].facultyLetter } : {}),
-        ...(chosen.tetra !== undefined ? { subStance: TETRA[chosen.tetra] } : {}),
-      };
       opts.onChosen?.(result);
 
       let landed: Landing;
@@ -247,6 +317,9 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
       if (chosen.tetra !== undefined && landed.tetra !== chosen.tetra) {
         console.warn(`[ic-dice] the tetrahedron shows ${landed.tetra === undefined ? 'nothing' : TETRA[landed.tetra].room} but ${TETRA[chosen.tetra].room} was chosen; keeping ${TETRA[chosen.tetra].room}`);
       }
+      if (chosen.solid !== undefined && landed.solid !== chosen.solid) {
+        console.warn(`[ic-dice] the solid die shows ${landed.solid === undefined ? 'nothing' : SOLIDS[landed.solid].name} but ${SOLIDS[chosen.solid].name} was chosen; keeping ${SOLIDS[chosen.solid].name}`);
+      }
 
       // the landing: a ripple in the landed School's colour
       if (chosen.cube !== undefined) {
@@ -254,37 +327,40 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
         if (landed.cubeAt) ripple(landed.cubeAt, rippleColour(school, paper));
       }
       if (chosen.tetra !== undefined && landed.tetraAt) ripple(landed.tetraAt, rippleColour(school, paper));
+      if (chosen.solid !== undefined && landed.solidAt) ripple(landed.solidAt, rippleColour(school, paper));
       return result;
     },
 
     /** Turning sound off silences the next sound, not one already ringing, as the page always has. */
     async show(pick) {
+      const chosen = chooseShow(pick);
       await ready;
       if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
-      const chosen: { cube?: number; tetra?: number } = {};
-      if (pick.skhool !== undefined) {
-        chosen.cube = CUBE.findIndex((s) => s.facultyLetter === pick.skhool);
-        if (chosen.cube < 0) throw new Error(`No School ${String(pick.skhool)} on the cube`);
-      }
-      if (pick.subStance !== undefined) {
-        const sub = pick.subStance;
-        chosen.tetra = TETRA.findIndex((t) => t === sub || t.room === sub.room);
-        if (chosen.tetra < 0) throw new Error(`No sub-stance ${sub.room} on the tetrahedron`);
-      }
       const shown = await clearing.turn(chosen, isReduced() ? 0 : SHOW_MS);
       // a School set by hand is the orientation's School too: the next ripple takes its colour
       school = nextSchool(school, shown.cube);
-      return {
-        ...(shown.cube !== undefined ? { skhool: CUBE[shown.cube].facultyLetter } : {}),
-        ...(shown.tetra !== undefined ? { subStance: TETRA[shown.tetra] } : {}),
-      };
+      return resultOf(shown);
     },
 
     async unset(pick) {
+      const which = chooseUnset(pick);
       await ready;
       if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
-      await clearing.unset({ cube: pick.skhool === true, tetra: pick.subStance === true }, isReduced() ? 0 : SHOW_MS);
+      await clearing.unset(which, isReduced() ? 0 : SHOW_MS);
       if (pick.skhool) school = null;
+    },
+
+    async park(pick) {
+      const which: Which[] = [...(pick.skhool ? (['cube'] as const) : []), ...(pick.subStance ? (['tetra'] as const) : [])];
+      await ready;
+      if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
+      await clearing.park(which, isReduced() ? 0 : SHOW_MS);
+    },
+
+    async unpark() {
+      await ready;
+      if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
+      await clearing.unpark(undefined, isReduced() ? 0 : SHOW_MS);
     },
 
     setSound(on) {

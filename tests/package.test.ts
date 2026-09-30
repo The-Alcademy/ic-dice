@@ -59,6 +59,7 @@ describe('the roll pick', () => {
     // checked by tsc as part of npm run build; a no-op at run time
     expectTypeOf<RollPick['skhool']>().toEqualTypeOf<SkhoolLetter | 'random' | undefined>();
     expectTypeOf<RollPick['subStance']>().toEqualTypeOf<SubStance | 'random' | undefined>();
+    expectTypeOf<RollPick['solid']>().toEqualTypeOf<pkg.SolidCode | 'random' | undefined>();
     const both: RollPick = { skhool: 'random', subStance: 'random' };
     const given: RollPick = { skhool: 'W', subStance: pkg.TETRA[1] };
     expect(both.skhool).toBe('random');
@@ -69,9 +70,14 @@ describe('the roll pick', () => {
 describe('undeciding a die', () => {
   it('names which dice to undecide, and nothing else', () => {
     // checked by tsc as part of npm run build; a no-op at run time
-    expectTypeOf<UnsetPick>().toEqualTypeOf<{ skhool?: true; subStance?: true }>();
+    expectTypeOf<UnsetPick>().toEqualTypeOf<{ skhool?: true; subStance?: true; solid?: true }>();
     expectTypeOf<DiceTray['unset']>().parameter(0).toEqualTypeOf<UnsetPick>();
     expectTypeOf<DiceTray['unset']>().returns.toEqualTypeOf<Promise<void>>();
+  });
+
+  it('parks only the first two dice: the solid die is the one thrown while they wait', () => {
+    expectTypeOf<DiceTray['park']>().parameter(0).toEqualTypeOf<{ skhool?: true; subStance?: true }>();
+    expectTypeOf<DiceTray['unpark']>().returns.toEqualTypeOf<Promise<void>>();
   });
 
   it('takes the Skhool off the ripples: ink again until one is thrown or set', () => {
@@ -148,12 +154,17 @@ describe('ic-dice/faces, the faces alone', () => {
       cpSync(at('package.json'), join(pkgDir, 'package.json'));
       writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
       const run = (code: string) => execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
-      const out = run(`import { CUBE, TETRA, schoolByLetter } from 'ic-dice/faces';
-        console.log(JSON.stringify({ cube: CUBE.map((s) => s.facultyLetter + ':' + s.faculty), tetra: TETRA.map((t) => t.room), r: schoolByLetter('R').faculty }));`);
+      const out = run(`import { CUBE, TETRA, SOLIDS, schoolByLetter, solidByCode, geocodeFor } from 'ic-dice/faces';
+        console.log(JSON.stringify({ cube: CUBE.map((s) => s.facultyLetter + ':' + s.faculty), tetra: TETRA.map((t) => t.room), r: schoolByLetter('R').faculty,
+          solids: SOLIDS.map((s) => s.code + ':' + s.ring), d: solidByCode('D').name, gi: geocodeFor('W', 'I'), clearing: geocodeFor('W', 'S') }));`);
       expect(JSON.parse(out)).toEqual({
         cube: ['R:REBIS', 'P:PILOT', 'S:SALVE', 'I:IMPRO', 'W:WEAVE', 'A:ALIGN'],
         tetra: ['Closet', 'Chamber', 'Alcove', 'Parlour'],
         r: 'REBIS',
+        solids: ['S:0', 'T:1', 'H:2', 'O:3', 'D:4', 'I:5'],
+        d: 'Dodecahedron',
+        gi: 'GI',
+        clearing: null,
       });
       // three really is absent there: the whole package fails to load
       expect(() => run(`await import('ic-dice');`)).toThrow(/three|cannon-es/);

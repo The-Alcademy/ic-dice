@@ -109,10 +109,73 @@ function a(t) {
 	if (!n) throw Error(`No School ${t} on the cube`);
 	return n;
 }
-function o(e) {
+var o = [
+	{
+		code: "S",
+		name: "Sphere",
+		faces: 0,
+		ring: 0,
+		place: "the Clearing"
+	},
+	{
+		code: "T",
+		name: "Tetrahedron",
+		faces: 4,
+		ring: 1,
+		place: "Forest"
+	},
+	{
+		code: "H",
+		name: "Hexahedron",
+		faces: 6,
+		ring: 2,
+		place: "Meadowland"
+	},
+	{
+		code: "O",
+		name: "Octahedron",
+		faces: 8,
+		ring: 3,
+		place: "River"
+	},
+	{
+		code: "D",
+		name: "Dodecahedron",
+		faces: 12,
+		ring: 4,
+		place: "Foothills"
+	},
+	{
+		code: "I",
+		name: "Icosahedron",
+		faces: 20,
+		ring: 5,
+		place: "Mountains"
+	}
+];
+function s(e) {
+	let t = o.find((t) => t.code === e);
+	if (!t) throw Error(`No solid "${e}" on the solid die: it is one of ${o.map((e) => e.code).join(", ")}`);
+	return t;
+}
+var c = {
+	P: "R",
+	S: "O",
+	I: "Y",
+	W: "G",
+	A: "B",
+	R: "P"
+};
+function l(e, t) {
+	let n = c[e];
+	if (!n) throw Error(`No School ${String(e)} on the cube`);
+	let r = s(t);
+	return r.code === "S" ? null : n + r.code;
+}
+function u(e) {
 	let n = t.find((t) => t.verb === e);
 	if (!n) throw Error(`No sub-stance "${e}" on the tetrahedron`);
 	return n;
 }
 //#endregion
-export { e as CUBE, n as INK, r as INK_ON_DARK, t as TETRA, i as WRITTEN, a as schoolByLetter, o as subStanceByVerb };
+export { e as CUBE, n as INK, r as INK_ON_DARK, o as SOLIDS, t as TETRA, i as WRITTEN, l as geocodeFor, a as schoolByLetter, s as solidByCode, u as subStanceByVerb };

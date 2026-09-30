@@ -74,15 +74,15 @@ describe('undeciding a die', () => {
   it('takes the Skhool off the ripples: ink again until one is thrown or set', () => {
     const { CUBE, INK, nextSchool, rippleColour } = pkg;
     // unset() sets the orientation's School to null; the rule it hands to the ripple
-    const set = nextSchool(null, CUBE.findIndex((s) => s.letter === 'W'));
-    expect(rippleColour(set)).toBe('#4E8A3A');
+    const set = nextSchool(null, CUBE.findIndex((s) => s.facultyLetter === 'W'));
+    expect(rippleColour(set)).toBe('#5c9a55'); // WEAVE's core
     expect(rippleColour(null)).toBe(INK);
   });
 });
 
 describe('the landing ripple', () => {
   const { CUBE, INK, nextSchool, rippleColour } = pkg;
-  const at = (letter: string) => CUBE.findIndex((s) => s.letter === letter);
+  const at = (letter: string) => CUBE.findIndex((s) => s.facultyLetter === letter);
 
   it('is ink until a School is in the orientation', () => {
     expect(rippleColour(null)).toBe(INK);
@@ -93,11 +93,11 @@ describe('the landing ripple', () => {
     // set ALIGN by hand, then throw only the tetrahedron: its ripple is ALIGN's blue
     let school = nextSchool(null, at('A'));
     school = nextSchool(school, undefined);
-    expect(rippleColour(school)).toBe('#2E64A0');
+    expect(rippleColour(school)).toBe('#5285c4'); // ALIGN's core
     // throw the cube onto PILOT: from then on it is PILOT's red
     school = nextSchool(school, at('P'));
-    expect(rippleColour(nextSchool(school, undefined))).toBe('#B23A2E');
+    expect(rippleColour(nextSchool(school, undefined))).toBe('#c14a55'); // PILOT's core
     // set REBIS by hand after that: REBIS's purple
-    expect(rippleColour(nextSchool(school, at('R')))).toBe('#6A3C8C');
+    expect(rippleColour(nextSchool(school, at('R')))).toBe('#a879e0'); // REBIS's core
   });
 });

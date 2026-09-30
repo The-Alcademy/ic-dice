@@ -172,9 +172,19 @@ and a wood-table knock on landing. See `src/sounds/ATTRIBUTION.md`.
 
 There is a sound toggle beside the Throw button, and the choice is remembered.
 
+## School colours
+
+The six School colours are ic-house-style's palette (`tokens/tokens.json` at
+`50548ff`), which is canonical: `core` colours the landing ripple, and `deep`, the
+colour for text on pale ground, letters the cube's wood faces (about 3.8:1 on the
+wood for every School). ic-house-style is private, so the values are copied into
+`src/faces.ts`, and `tests/faces.test.ts` pins them. Each School's letter is its
+Faculty's initial, `facultyLetter` (R P S I W A), not the colour's initial
+(ic-house-style's `colourLetter`, R O Y G B P, used for geocodes); no field is
+called just `letter`.
+
 ## Provisional
 
 - Every preposition except "at the Drawing Board" is provisional, and is marked
   so in `src/faces.ts`.
-- The School colours here are the prototype's own, as given in the goal, not
-  the ic-house-style tokens.
+

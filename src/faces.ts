@@ -6,11 +6,14 @@ export type SchoolLetter = 'R' | 'P' | 'S' | 'I' | 'W' | 'A';
 export type SkhoolLetter = SchoolLetter;
 
 export interface School {
-  /** The Faculty's initial, as it is lettered on the cube. */
-  letter: SchoolLetter;
+  /** The Faculty's initial, as it is lettered on the cube (not the colour's initial, which ic-house-style calls colourLetter). */
+  facultyLetter: SchoolLetter;
   faculty: string;
   colour: string;
-  hex: string;
+  /** The School's colour, from ic-house-style (school.core): fills and marks, such as the landing ripple. */
+  core: string;
+  /** Its colour as text on pale ground, from ic-house-style (school.deep): the letter on the wood face. */
+  deep: string;
   domain: string;
   /** Completes "the ability to …". */
   gloss: string;
@@ -25,39 +28,43 @@ export interface School {
  * The MetaMind cube, in mandala order: Purple at north, then clockwise. Only
  * "at the Drawing Board" is settled; every other preposition is PROVISIONAL.
  */
+// The colours are ic-house-style's School palette (tokens/tokens.json at 50548ff),
+// the canonical one: `core` for fills and marks, `deep` for text on pale ground.
+// ic-dice cannot depend on ic-house-style (a private repo), so they are copied
+// here, and tests/faces.test.ts pins them to those values.
 export const CUBE: readonly School[] = [
   {
-    letter: 'R', faculty: 'REBIS', colour: 'Purple', hex: '#6A3C8C', domain: 'PsychoAlchemy',
+    facultyLetter: 'R', faculty: 'REBIS', colour: 'Purple', core: '#a879e0', deep: '#8441d3', domain: 'PsychoAlchemy',
     gloss: 'transmute belief — to hold opposites until a new whole forms',
     hall: 'the Looking Glass', title: 'the Hall of Reflection',
     prep: 'at', // PROVISIONAL
   },
   {
-    letter: 'P', faculty: 'PILOT', colour: 'Red', hex: '#B23A2E', domain: 'PsychoNautics',
+    facultyLetter: 'P', faculty: 'PILOT', colour: 'Red', core: '#c14a55', deep: '#b43e49', domain: 'PsychoNautics',
     gloss: 'steer your own consciousness',
     hall: 'the Lantern', title: 'the Hall of Perception',
     prep: 'in', // PROVISIONAL
   },
   {
-    letter: 'S', faculty: 'SALVE', colour: 'Orange', hex: '#C45A1C', domain: 'PsychoTherapeutics',
+    facultyLetter: 'S', faculty: 'SALVE', colour: 'Orange', core: '#cf8331', deep: '#905b21', domain: 'PsychoTherapeutics',
     gloss: 'tend and restore wellbeing',
     hall: 'the Sensorium', title: 'the Hall of Sensing',
     prep: 'in', // PROVISIONAL
   },
   {
-    letter: 'I', faculty: 'IMPRO', colour: 'Yellow', hex: '#D6A92A', domain: 'PsychoLudics',
+    facultyLetter: 'I', faculty: 'IMPRO', colour: 'Yellow', core: '#caa62c', deep: '#7a651b', domain: 'PsychoLudics',
     gloss: 'play in earnest — to improvise',
     hall: 'the Drawing Board', title: 'the Hall of Invention',
     prep: 'at', // settled
   },
   {
-    letter: 'W', faculty: 'WEAVE', colour: 'Green', hex: '#4E8A3A', domain: 'PsychoTerranics',
+    facultyLetter: 'W', faculty: 'WEAVE', colour: 'Green', core: '#5c9a55', deep: '#43713e', domain: 'PsychoTerranics',
     gloss: 'live woven into the web of life',
     hall: 'the Ramble', title: 'the Hall of Wandering',
     prep: 'on', // PROVISIONAL
   },
   {
-    letter: 'A', faculty: 'ALIGN', colour: 'Blue', hex: '#2E64A0', domain: 'PsychoTechnics',
+    facultyLetter: 'A', faculty: 'ALIGN', colour: 'Blue', core: '#5285c4', deep: '#3869a5', domain: 'PsychoTechnics',
     gloss: 'test reality and name what is true',
     hall: 'the Anomaly', title: 'the Hall of Asking',
     prep: 'at', // PROVISIONAL
@@ -88,7 +95,7 @@ export const INK = '#1F2A33';
 export const WRITTEN = '#2B5468';
 
 export function schoolByLetter(letter: SchoolLetter): School {
-  const found = CUBE.find((s) => s.letter === letter);
+  const found = CUBE.find((s) => s.facultyLetter === letter);
   if (!found) throw new Error(`No School ${letter} on the cube`);
   return found;
 }

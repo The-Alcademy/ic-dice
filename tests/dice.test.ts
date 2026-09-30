@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CUBE, TETRA } from '../src/faces';
 import { CUBE_BASE, CUBE_FACES, cubeLabelling, tetraLabelling, cubeTurnTo, tetraTurnTo, tetraRestHeight, cubeShows, tetraShows, cubeUnsetTo, tetraUnsetTo, CUBE_CORNER_HEIGHT, TETRA_POINT_HEIGHT, lowestPoint, simulate, CUBE_HALF } from '../src/dice';
 
-const letter = (i: number) => CUBE[i].letter;
+const letter = (i: number) => CUBE[i].facultyLetter;
 /** Faces 0/1, 2/3 and 4/5 are opposite (+x/−x, +y/−y, +z/−z). */
 const pairs = (labels: number[]) =>
   [0, 2, 4].map((f) => [letter(labels[f]), letter(labels[f + 1])].sort().join('/')).sort();

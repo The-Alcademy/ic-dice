@@ -149,11 +149,11 @@ function texture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
 function letterTexture(school: School): THREE.CanvasTexture {
   const c = woodCanvas();
   const g = c.getContext('2d')!;
-  g.fillStyle = school.hex;
+  g.fillStyle = school.deep; // text on the pale wood
   g.font = '600 150px Jost, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(school.letter, 128, 138);
+  g.fillText(school.facultyLetter, 128, 138);
   return texture(c);
 }
 

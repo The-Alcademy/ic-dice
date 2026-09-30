@@ -121,7 +121,7 @@ export function nextSchool(current: School | null, cube: number | undefined): Sc
 
 /** A landing ripple is the colour of the School in the orientation; ink until there is one. */
 export function rippleColour(school: School | null): string {
-  return school?.hex ?? INK;
+  return school?.core ?? INK;
 }
 
 /** How long a die takes to turn to a face set by hand. */
@@ -193,7 +193,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
       // the result first, so a host can log it before a die leaves the hand
       const chosen: { cube?: number; tetra?: number } = {};
       if (pick.skhool !== undefined) {
-        chosen.cube = pick.skhool === 'random' ? chooseIndex(CUBE.length) : CUBE.findIndex((s) => s.letter === pick.skhool);
+        chosen.cube = pick.skhool === 'random' ? chooseIndex(CUBE.length) : CUBE.findIndex((s) => s.facultyLetter === pick.skhool);
         if (chosen.cube < 0) throw new Error(`No School ${String(pick.skhool)} on the cube`);
       }
       if (pick.subStance !== undefined) {
@@ -202,7 +202,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
         if (chosen.tetra < 0) throw new Error(`No sub-stance ${sub === 'random' ? sub : sub.room} on the tetrahedron`);
       }
       const result: RollResult = {
-        ...(chosen.cube !== undefined ? { skhool: CUBE[chosen.cube].letter } : {}),
+        ...(chosen.cube !== undefined ? { skhool: CUBE[chosen.cube].facultyLetter } : {}),
         ...(chosen.tetra !== undefined ? { subStance: TETRA[chosen.tetra] } : {}),
       };
       opts.onChosen?.(result);
@@ -218,7 +218,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
 
       // the dice as they physically lie, against the record; the record wins
       if (chosen.cube !== undefined && landed.cube !== chosen.cube) {
-        console.warn(`[ic-dice] the cube shows ${landed.cube === undefined ? 'nothing' : CUBE[landed.cube].letter} but ${CUBE[chosen.cube].letter} was chosen; keeping ${CUBE[chosen.cube].letter}`);
+        console.warn(`[ic-dice] the cube shows ${landed.cube === undefined ? 'nothing' : CUBE[landed.cube].facultyLetter} but ${CUBE[chosen.cube].facultyLetter} was chosen; keeping ${CUBE[chosen.cube].facultyLetter}`);
       }
       if (chosen.tetra !== undefined && landed.tetra !== chosen.tetra) {
         console.warn(`[ic-dice] the tetrahedron shows ${landed.tetra === undefined ? 'nothing' : TETRA[landed.tetra].room} but ${TETRA[chosen.tetra].room} was chosen; keeping ${TETRA[chosen.tetra].room}`);
@@ -239,7 +239,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
       if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
       const chosen: { cube?: number; tetra?: number } = {};
       if (pick.skhool !== undefined) {
-        chosen.cube = CUBE.findIndex((s) => s.letter === pick.skhool);
+        chosen.cube = CUBE.findIndex((s) => s.facultyLetter === pick.skhool);
         if (chosen.cube < 0) throw new Error(`No School ${String(pick.skhool)} on the cube`);
       }
       if (pick.subStance !== undefined) {
@@ -251,7 +251,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
       // a School set by hand is the orientation's School too: the next ripple takes its colour
       school = nextSchool(school, shown.cube);
       return {
-        ...(shown.cube !== undefined ? { skhool: CUBE[shown.cube].letter } : {}),
+        ...(shown.cube !== undefined ? { skhool: CUBE[shown.cube].facultyLetter } : {}),
         ...(shown.tetra !== undefined ? { subStance: TETRA[shown.tetra] } : {}),
       };
     },

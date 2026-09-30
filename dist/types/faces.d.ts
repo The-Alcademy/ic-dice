@@ -2,11 +2,14 @@ export type SchoolLetter = 'R' | 'P' | 'S' | 'I' | 'W' | 'A';
 /** The Skhool a MetaMind throw lands on, by its Faculty's initial (the IC apps' name for it). */
 export type SkhoolLetter = SchoolLetter;
 export interface School {
-    /** The Faculty's initial, as it is lettered on the cube. */
-    letter: SchoolLetter;
+    /** The Faculty's initial, as it is lettered on the cube (not the colour's initial, which ic-house-style calls colourLetter). */
+    facultyLetter: SchoolLetter;
     faculty: string;
     colour: string;
-    hex: string;
+    /** The School's colour, from ic-house-style (school.core): fills and marks, such as the landing ripple. */
+    core: string;
+    /** Its colour as text on pale ground, from ic-house-style (school.deep): the letter on the wood face. */
+    deep: string;
     domain: string;
     /** Completes "the ability to …". */
     gloss: string;

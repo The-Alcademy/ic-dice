@@ -38,14 +38,14 @@ describe('the sub-stance tetrahedron', () => {
 });
 
 describe('the School colours', () => {
-  it('are ic-house-style’s palette (tokens/tokens.json at 50548ff): core for marks, deep for letters', () => {
-    expect(CUBE.map((s) => [s.facultyLetter, s.colour, s.core, s.deep])).toEqual([
-      ['R', 'Purple', '#a879e0', '#8441d3'],
-      ['P', 'Red', '#c14a55', '#b43e49'],
-      ['S', 'Orange', '#cf8331', '#905b21'],
-      ['I', 'Yellow', '#caa62c', '#7a651b'],
-      ['W', 'Green', '#5c9a55', '#43713e'],
-      ['A', 'Blue', '#5285c4', '#3869a5'],
+  it('are ic-house-style’s palette (tokens/tokens.json at 50548ff): core for marks, glow for them on dark, deep for letters', () => {
+    expect(CUBE.map((s) => [s.facultyLetter, s.colour, s.core, s.glow, s.deep])).toEqual([
+      ['R', 'Purple', '#a879e0', '#c6a3f0', '#8441d3'],
+      ['P', 'Red', '#c14a55', '#e08a90', '#b43e49'],
+      ['S', 'Orange', '#cf8331', '#e6a566', '#905b21'],
+      ['I', 'Yellow', '#caa62c', '#ddc766', '#7a651b'],
+      ['W', 'Green', '#5c9a55', '#88c081', '#43713e'],
+      ['A', 'Blue', '#5285c4', '#82a8dc', '#3869a5'],
     ]);
   });
 

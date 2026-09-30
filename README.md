@@ -43,6 +43,7 @@ import { mountDiceTray, schoolByLetter, thresholdLine } from 'ic-dice';
 
 const tray = mountDiceTray(document.getElementById('tray')!, {
   sound: true,
+  paper: 'light', // or 'dark': the ring, shadows and ripples are drawn to show on it
   // called with the result before a die moves, so it can be logged first
   onChosen: (result) => daybook.log(result),
 });
@@ -58,6 +59,7 @@ await tray.show({ skhool: 'R' });
 await tray.unset({ skhool: true });
 
 tray.setSound(false);
+tray.setPaper('dark'); // e.g. when the page's light/dark setting changes
 tray.destroy(); // releases WebGL, audio and listeners, and empties the element
 ```
 
@@ -79,6 +81,12 @@ tray.destroy(); // releases WebGL, audio and listeners, and empties the element
   ripples to ink.
 - A landing ripple takes the colour of the School in the orientation, whether it
   was thrown or set by hand with `show()`, and is ink until there is one.
+- The tray draws no background: the page's paper shows through. `paper`
+  (default `'light'`) says which paper that is. On dark, the Clearing's ring is
+  in `INK_ON_DARK` (ic-house-style's dark-paper text colour) rather than `INK`,
+  the dice's shadows are stronger, and ripples take each School's `glow`, not its
+  `core`. The tray does not follow `prefers-color-scheme` itself; a host that
+  does calls `setPaper()` when it changes.
 - Motion follows `prefers-reduced-motion` unless `reducedMotion` is passed.
 - The one thing it adds outside its element is the Jost face, in
   `document.fonts`; the last tray's `destroy()` removes it.
@@ -175,7 +183,8 @@ There is a sound toggle beside the Throw button, and the choice is remembered.
 ## School colours
 
 The six School colours are ic-house-style's palette (`tokens/tokens.json` at
-`50548ff`), which is canonical: `core` colours the landing ripple, and `deep`, the
+`50548ff`), which is canonical: `core` colours the landing ripple on light paper,
+`glow` colours it on dark, and `deep`, the
 colour for text on pale ground, letters the cube's wood faces (about 3.8:1 on the
 wood for every School). ic-house-style is private, so the values are copied into
 `src/faces.ts`, and `tests/faces.test.ts` pins them. Each School's letter is its

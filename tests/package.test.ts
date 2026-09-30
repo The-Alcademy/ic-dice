@@ -101,3 +101,24 @@ describe('the landing ripple', () => {
     expect(rippleColour(nextSchool(school, at('R')))).toBe('#a879e0'); // REBIS's core
   });
 });
+
+describe('the paper', () => {
+  const { CUBE, INK, INK_ON_DARK, rippleColour, schoolByLetter } = pkg;
+
+  it('is light unless the host says otherwise: the ripples keep their light-paper colours', () => {
+    expect(rippleColour(null)).toBe(INK);
+    expect(rippleColour(schoolByLetter('W'))).toBe('#5c9a55');
+  });
+
+  it('on dark, draws in light ink, and each School ripples in its glow', () => {
+    expect(INK_ON_DARK).toBe('#eae2d0'); // ic-house-style's dark-paper text
+    expect(rippleColour(null, 'dark')).toBe(INK_ON_DARK);
+    for (const s of CUBE) expect(rippleColour(s, 'dark')).toBe(s.glow);
+    expect(rippleColour(schoolByLetter('R'), 'dark')).toBe('#c6a3f0'); // REBIS's glow
+  });
+
+  it('is an option of the tray, and can be changed once it is mounted', () => {
+    expectTypeOf<pkg.DiceTrayOptions['paper']>().toEqualTypeOf<pkg.Paper | undefined>();
+    expectTypeOf<DiceTray['setPaper']>().parameter(0).toEqualTypeOf<pkg.Paper>();
+  });
+});

@@ -20,7 +20,7 @@
 
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { CUBE, TETRA, INK, type School, type SubStance, type SubRoomIcon } from './faces';
+import { CUBE, TETRA, INK, INK_ON_DARK, type Paper, type School, type SubStance, type SubRoomIcon } from './faces';
 
 // ---------------------------------------------------------------- geometry --
 
@@ -664,13 +664,20 @@ export interface Clearing {
    * same short, smooth motion as turn(): no sound, no landing. `ms` 0 is at once.
    */
   unset(which: { cube?: boolean; tetra?: boolean }, ms: number): Promise<void>;
+  /** Draw the ring and the shadows for this paper. */
+  setPaper(paper: Paper): void;
   onImpact: (impact: Impact) => void;
   onLand: () => void;
   /** Stop drawing, and release the WebGL context and every GPU resource. */
   destroy(): void;
 }
 
-export function createClearing(host: HTMLElement): Clearing {
+/** The ink the ring is drawn in on each paper. */
+export const paperInk = (paper: Paper): string => (paper === 'dark' ? INK_ON_DARK : INK);
+/** A shadow dark enough to read on each paper. */
+const SHADOW: Record<Paper, number> = { light: 0.18, dark: 0.45 };
+
+export function createClearing(host: HTMLElement, paper: Paper = 'light'): Clearing {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
   renderer.shadowMap.enabled = true;
@@ -694,16 +701,20 @@ export function createClearing(host: HTMLElement): Clearing {
   scene.add(sun);
 
   // the Clearing: the page's own paper shows through; only the shadows and the ring are drawn
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(CLEARING_RADIUS + 0.4, 96), new THREE.ShadowMaterial({ opacity: 0.18 }));
+  const shadow = new THREE.ShadowMaterial({ opacity: SHADOW[paper] });
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(CLEARING_RADIUS + 0.4, 96), shadow);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
+  const ringMaterials: THREE.LineBasicMaterial[] = [];
   for (const [r, opacity] of [[CLEARING_RADIUS + 0.4, 0.9], [CLEARING_RADIUS * 0.2, 0.25]] as const) {
+    const material = new THREE.LineBasicMaterial({ color: paperInk(paper), transparent: true, opacity });
+    ringMaterials.push(material);
     const ring = new THREE.LineLoop(
       new THREE.BufferGeometry().setFromPoints(
         Array.from({ length: 128 }, (_, i) => new THREE.Vector3(Math.cos((i / 128) * Math.PI * 2) * r, 0.002, Math.sin((i / 128) * Math.PI * 2) * r)),
       ),
-      new THREE.LineBasicMaterial({ color: INK, transparent: true, opacity }),
+      material,
     );
     scene.add(ring);
   }
@@ -829,6 +840,10 @@ export function createClearing(host: HTMLElement): Clearing {
   };
 
   const clearing: Clearing = {
+    setPaper(next) {
+      for (const m of ringMaterials) m.color.set(paperInk(next));
+      shadow.opacity = SHADOW[next];
+    },
     onImpact: () => {},
     onLand: () => {},
     destroy: () => {},

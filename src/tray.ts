@@ -10,8 +10,8 @@
 // copies no files. The one thing it adds outside `el` is that font, to
 // document.fonts, and destroy() takes it away again.
 
-import { CUBE, TETRA, INK, type School, type SkhoolLetter, type SubStance } from './faces';
-import { createClearing, type Clearing, type Impact, type Landing } from './dice';
+import { CUBE, TETRA, type Paper, type School, type SkhoolLetter, type SubStance } from './faces';
+import { createClearing, paperInk, type Clearing, type Impact, type Landing } from './dice';
 import jostUrl from './fonts/jost-variable-latin.woff2?url';
 
 // The sounds, one module each, inlined by the build (see src/sounds/ATTRIBUTION.md).
@@ -55,6 +55,11 @@ export interface DiceTrayOptions {
   sound?: boolean;
   /** Place the dice on their result with no throw. Default: follow prefers-reduced-motion, checked at each roll. */
   reducedMotion?: boolean;
+  /**
+   * The paper the tray sits on: its ring, its shadows and its ripples are drawn
+   * to show on it. Default: 'light'. Change it later with setPaper().
+   */
+  paper?: Paper;
   /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
   onChosen?: (result: RollResult) => void;
 }
@@ -78,6 +83,8 @@ export interface DiceTray {
    */
   unset(pick: UnsetPick): Promise<void>;
   setSound(on: boolean): void;
+  /** Redraw the ring, shadows and later ripples for this paper, e.g. when the page's light/dark setting changes. */
+  setPaper(paper: Paper): void;
   /** Release WebGL, audio and listeners, and empty `el` of everything the tray put there. */
   destroy(): void;
 }
@@ -119,9 +126,13 @@ export function nextSchool(current: School | null, cube: number | undefined): Sc
   return cube === undefined ? current : CUBE[cube];
 }
 
-/** A landing ripple is the colour of the School in the orientation; ink until there is one. */
-export function rippleColour(school: School | null): string {
-  return school?.core ?? INK;
+/**
+ * A landing ripple is the colour of the School in the orientation, ink until
+ * there is one: its core on light paper, its glow on dark, as ic-house-style has it.
+ */
+export function rippleColour(school: School | null, paper: Paper = 'light'): string {
+  if (!school) return paperInk(paper);
+  return paper === 'dark' ? school.glow : school.core;
 }
 
 /** How long a die takes to turn to a face set by hand. */
@@ -129,6 +140,7 @@ const SHOW_MS = 450;
 
 export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): DiceTray {
   let soundOn = opts.sound ?? true;
+  let paper: Paper = opts.paper ?? 'light';
   let destroyed = false;
   let lastSound = 0;
   const playing = new Set<HTMLAudioElement>();
@@ -159,7 +171,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   // the cube's letters are drawn into canvases once, so Jost has to be here first
   const ready = acquireJost().then(() => {
     if (destroyed) return;
-    clearing = createClearing(box);
+    clearing = createClearing(box, paper);
     clearing.onImpact = (hit: Impact) => play(hit.kind === 'die' ? 'clack' : 'tray', hit.speed / 9);
     clearing.onLand = () => play('land', 0.8);
   });
@@ -227,9 +239,9 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
       // the landing: a ripple in the landed School's colour
       if (chosen.cube !== undefined) {
         school = nextSchool(school, chosen.cube);
-        if (landed.cubeAt) ripple(landed.cubeAt, rippleColour(school));
+        if (landed.cubeAt) ripple(landed.cubeAt, rippleColour(school, paper));
       }
-      if (chosen.tetra !== undefined && landed.tetraAt) ripple(landed.tetraAt, rippleColour(school));
+      if (chosen.tetra !== undefined && landed.tetraAt) ripple(landed.tetraAt, rippleColour(school, paper));
       return result;
     },
 
@@ -265,6 +277,11 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
 
     setSound(on) {
       soundOn = on;
+    },
+
+    setPaper(next) {
+      paper = next;
+      clearing?.setPaper(next);
     },
 
     destroy() {

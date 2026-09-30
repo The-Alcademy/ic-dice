@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { type School, type SubStance } from './faces';
+import { type Paper, type School, type SubStance } from './faces';
 type V3 = [number, number, number];
 export declare const CUBE_HALF = 0.74;
 /** Cube faces by index: the local normal of each, and which way is "up" on it. */
@@ -111,10 +111,14 @@ export interface Clearing {
         cube?: boolean;
         tetra?: boolean;
     }, ms: number): Promise<void>;
+    /** Draw the ring and the shadows for this paper. */
+    setPaper(paper: Paper): void;
     onImpact: (impact: Impact) => void;
     onLand: () => void;
     /** Stop drawing, and release the WebGL context and every GPU resource. */
     destroy(): void;
 }
-export declare function createClearing(host: HTMLElement): Clearing;
+/** The ink the ring is drawn in on each paper. */
+export declare const paperInk: (paper: Paper) => string;
+export declare function createClearing(host: HTMLElement, paper?: Paper): Clearing;
 export type { School, SubStance };

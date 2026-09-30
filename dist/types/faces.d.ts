@@ -8,6 +8,8 @@ export interface School {
     colour: string;
     /** The School's colour, from ic-house-style (school.core): fills and marks, such as the landing ripple. */
     core: string;
+    /** Its colour on dark paper, from ic-house-style (school.glow): the landing ripple when the tray is on dark. */
+    glow: string;
     /** Its colour as text on pale ground, from ic-house-style (school.deep): the letter on the wood face. */
     deep: string;
     domain: string;
@@ -37,6 +39,10 @@ export interface SubStance {
 export declare const TETRA: readonly SubStance[];
 /** The die's look. */
 export declare const INK = "#1F2A33";
+/** Ink on dark paper: ic-house-style's dark-paper text colour, so the Clearing's ring shows. */
+export declare const INK_ON_DARK = "#eae2d0";
+/** The page the tray sits on. Its paper shows through; the ring and ripples are drawn to be seen on it. */
+export type Paper = 'light' | 'dark';
 export declare const WRITTEN = "#2B5468";
 export declare function schoolByLetter(letter: SchoolLetter): School;
 export declare function subStanceByVerb(verb: string): SubStance;

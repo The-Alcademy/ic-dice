@@ -1,6 +1,6 @@
 {
   "name": "ic-dice",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Invysible College: the dice roll in the Clearing — a MetaMind cube and a sub-stance tetrahedron, thrown with physics onto results chosen first.",
   "license": "UNLICENSED",

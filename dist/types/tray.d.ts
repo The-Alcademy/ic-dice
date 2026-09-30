@@ -1,4 +1,4 @@
-import { type School, type SkhoolLetter, type SubStance } from './faces';
+import { type Paper, type School, type SkhoolLetter, type SubStance } from './faces';
 export type { SkhoolLetter, SubStance };
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
@@ -25,6 +25,11 @@ export interface DiceTrayOptions {
     sound?: boolean;
     /** Place the dice on their result with no throw. Default: follow prefers-reduced-motion, checked at each roll. */
     reducedMotion?: boolean;
+    /**
+     * The paper the tray sits on: its ring, its shadows and its ripples are drawn
+     * to show on it. Default: 'light'. Change it later with setPaper().
+     */
+    paper?: Paper;
     /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
     onChosen?: (result: RollResult) => void;
 }
@@ -47,6 +52,8 @@ export interface DiceTray {
      */
     unset(pick: UnsetPick): Promise<void>;
     setSound(on: boolean): void;
+    /** Redraw the ring, shadows and later ripples for this paper, e.g. when the page's light/dark setting changes. */
+    setPaper(paper: Paper): void;
     /** Release WebGL, audio and listeners, and empty `el` of everything the tray put there. */
     destroy(): void;
 }
@@ -58,6 +65,9 @@ export declare function chooseIndex(n: number): number;
  * that leaves the cube alone (`cube` undefined) keeps the School there was.
  */
 export declare function nextSchool(current: School | null, cube: number | undefined): School | null;
-/** A landing ripple is the colour of the School in the orientation; ink until there is one. */
-export declare function rippleColour(school: School | null): string;
+/**
+ * A landing ripple is the colour of the School in the orientation, ink until
+ * there is one: its core on light paper, its glow on dark, as ic-house-style has it.
+ */
+export declare function rippleColour(school: School | null, paper?: Paper): string;
 export declare function mountDiceTray(el: HTMLElement, opts?: DiceTrayOptions): DiceTray;

@@ -5,7 +5,7 @@ the centre of the BedePlex mandala, the student throws two dice:
 
 - the **MetaMind cube**, which chooses the School gate they face (R P S I W A,
   in mandala order: Purple at north, then clockwise);
-- the **sub-stance tetrahedron**, which chooses the sub-room: Closet, Chamber,
+- the **sub-stance tetrahedron**, which chooses the Chamber: Closet, Workshop,
   Alcove or Parlour.
 
 When they land, the orientation line writes itself in, naming the Faculty as
@@ -133,7 +133,7 @@ well, but the two things this roll needs could not be done cleanly:
   presets (its `DiceFactory`), not in the public options. A custom colorset
   changes colours, not labels. Six School letters, each in its own colour,
   would mean reaching into undocumented internals of a 0.0.x package.
-- **A d4 with sub-room icons, read at its apex.** Its d4 draws text labels
+- **A d4 with Chamber icons, read at its apex.** Its d4 draws text labels
   from a font, so a key, an anvil, a lamp and a table would need a symbol font
   or more patching of internals.
 
@@ -145,8 +145,8 @@ Cannon-es" approach:
 - the **cube** has **truncated corners**: six labelled octagons and eight small
   corner facets, as one convex polyhedron for both the drawing and the physics;
 - the **tetrahedron** is read **at its apex**. Each face shows, near each of
-  its three corners, the sub-room of the vertex at that corner, upright towards
-  the corner. So the three faces round the top vertex all show its sub-room at
+  its three corners, the Chamber of the vertex at that corner, upright towards
+  the corner. So the three faces round the top vertex all show its Chamber at
   the top.
 
 dice-box-threejs is no longer a dependency. Its wood sounds were copied into

@@ -62,7 +62,7 @@ describe('the roll pick', () => {
     const both: RollPick = { skhool: 'random', subStance: 'random' };
     const given: RollPick = { skhool: 'W', subStance: pkg.TETRA[1] };
     expect(both.skhool).toBe('random');
-    expect((given.subStance as SubStance).room).toBe('Chamber');
+    expect((given.subStance as SubStance).room).toBe('Workshop');
   });
 });
 
@@ -152,7 +152,7 @@ describe('ic-dice/faces, the faces alone', () => {
         console.log(JSON.stringify({ cube: CUBE.map((s) => s.facultyLetter + ':' + s.faculty), tetra: TETRA.map((t) => t.room), r: schoolByLetter('R').faculty }));`);
       expect(JSON.parse(out)).toEqual({
         cube: ['R:REBIS', 'P:PILOT', 'S:SALVE', 'I:IMPRO', 'W:WEAVE', 'A:ALIGN'],
-        tetra: ['Closet', 'Chamber', 'Alcove', 'Parlour'],
+        tetra: ['Closet', 'Workshop', 'Alcove', 'Parlour'],
         r: 'REBIS',
       });
       // three really is absent there: the whole package fails to load

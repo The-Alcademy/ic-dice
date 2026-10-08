@@ -1,5 +1,5 @@
 // The two dice's faces: the single source of truth for the page, the Porter's
-// line, and the tests. Nothing else in the app spells a School or a sub-room.
+// line, and the tests. Nothing else in the app spells a School or a Chamber.
 
 export type SchoolLetter = 'R' | 'P' | 'S' | 'I' | 'W' | 'A';
 /** The Skhool a MetaMind throw lands on, by its Faculty's initial (the IC apps' name for it). */
@@ -84,10 +84,10 @@ export interface SubStance {
   icon: SubRoomIcon;
 }
 
-/** The sub-stance tetrahedron: the four sub-rooms of every Room. */
+/** The sub-stance tetrahedron: the four Chambers of every Room (canon D-23, D-25). */
 export const TETRA: readonly SubStance[] = [
   { room: 'Closet', verb: 'acquire', phrase: 'acquiring it', icon: 'key' },
-  { room: 'Chamber', verb: 'practise', phrase: 'practising it', icon: 'anvil' },
+  { room: 'Workshop', verb: 'practise', phrase: 'practising it', icon: 'anvil' },
   { room: 'Alcove', verb: 'reflect', phrase: 'reflecting on it', icon: 'lamp' },
   { room: 'Parlour', verb: 'encounter', phrase: 'encountering it', icon: 'table' },
 ];

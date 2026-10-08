@@ -35,7 +35,7 @@ export interface SubStance {
     phrase: string;
     icon: SubRoomIcon;
 }
-/** The sub-stance tetrahedron: the four sub-rooms of every Room. */
+/** The sub-stance tetrahedron: the four Chambers of every Room (canon D-23, D-25). */
 export declare const TETRA: readonly SubStance[];
 /** The die's look. */
 export declare const INK = "#1F2A33";

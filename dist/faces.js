@@ -86,7 +86,7 @@ var e = [
 		icon: "key"
 	},
 	{
-		room: "Chamber",
+		room: "Workshop",
 		verb: "practise",
 		phrase: "practising it",
 		icon: "anvil"

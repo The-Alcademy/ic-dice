@@ -26,11 +26,11 @@ describe('the MetaMind cube', () => {
 });
 
 describe('the sub-stance tetrahedron', () => {
-  it('has exactly four faces: the four sub-rooms', () => {
+  it('has exactly four faces: the four Chambers', () => {
     expect(TETRA).toHaveLength(4);
     expect(TETRA.map((s) => [s.room, s.verb, s.phrase, s.icon])).toEqual([
       ['Closet', 'acquire', 'acquiring it', 'key'],
-      ['Chamber', 'practise', 'practising it', 'anvil'],
+      ['Workshop', 'practise', 'practising it', 'anvil'],
       ['Alcove', 'reflect', 'reflecting on it', 'lamp'],
       ['Parlour', 'encounter', 'encountering it', 'table'],
     ]);

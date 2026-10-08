@@ -251,7 +251,7 @@ function letterTexture(school: School): THREE.CanvasTexture {
   return texture(c);
 }
 
-/** The four sub-room icons, drawn in ink as simple line pictures, centred on 0,0, about 1 unit tall. */
+/** The four Chamber icons, drawn in ink as simple line pictures, centred on 0,0, about 1 unit tall. */
 function drawIcon(g: CanvasRenderingContext2D, icon: SubRoomIcon) {
   g.beginPath();
   switch (icon) {
@@ -309,9 +309,9 @@ const TRI_UV: [number, number][] = [
 ];
 
 /**
- * A tetrahedron face showing, near each of its three corners, the sub-room of
+ * A tetrahedron face showing, near each of its three corners, the Chamber of
  * the vertex at that corner — upright towards the corner, so the die is read
- * at its apex: the three faces round the top vertex all show its sub-room at
+ * at its apex: the three faces round the top vertex all show its Chamber at
  * the top.
  */
 function tetraFaceTexture(labels: [number, number, number]): THREE.CanvasTexture {

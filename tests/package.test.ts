@@ -63,7 +63,7 @@ describe('the roll pick', () => {
     const both: RollPick = { skhool: 'random', subStance: 'random' };
     const given: RollPick = { skhool: 'W', subStance: pkg.TETRA[1] };
     expect(both.skhool).toBe('random');
-    expect((given.subStance as SubStance).room).toBe('Chamber');
+    expect((given.subStance as SubStance).room).toBe('Workshop');
   });
 });
 
@@ -159,7 +159,7 @@ describe('ic-dice/faces, the faces alone', () => {
           solids: SOLIDS.map((s) => s.code + ':' + s.ring), d: solidByCode('D').name, gi: geocodeFor('W', 'I'), clearing: geocodeFor('W', 'S') }));`);
       expect(JSON.parse(out)).toEqual({
         cube: ['R:REBIS', 'P:PILOT', 'S:SALVE', 'I:IMPRO', 'W:WEAVE', 'A:ALIGN'],
-        tetra: ['Closet', 'Chamber', 'Alcove', 'Parlour'],
+        tetra: ['Closet', 'Workshop', 'Alcove', 'Parlour'],
         r: 'REBIS',
         solids: ['S:0', 'T:1', 'H:2', 'O:3', 'D:4', 'I:5'],
         d: 'Dodecahedron',

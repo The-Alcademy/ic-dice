@@ -25,6 +25,25 @@ export declare const SOLID_BASE: number[];
  * drawn instead (see solidTexture).
  */
 export declare function solidDrawing(code: string): [number, number, number, number][];
+/** How the cube and the solid die are drawn: 'default' (the MetaMind cube's Faculty letters) or 'geocode'. */
+export type FaceStyle = 'default' | 'geocode';
+/** A face style; left out, it is 'default'. Anything else is refused clearly. */
+export declare function faceStyle(style: unknown): FaceStyle;
+/** A School's colour letter, as a geocode begins (D-48), read from geocodeFor so faces.ts stays the one source. */
+export declare const colourLetter: (school: School) => string;
+/** The WCAG contrast ratio of two #rrggbb colours. */
+export declare function contrast(a: string, b: string): number;
+/** The letter on a School's disc: ink or white, whichever stands out more from the disc's colour. */
+export declare const discLetterColour: (core: string) => string;
+/**
+ * The cube's and the solid die's face drawings in a style, indexed as CUBE and
+ * SOLIDS are, so the relabelling picks the same School or solid for a face
+ * whichever style is drawn.
+ */
+export declare function faceTextures(style: FaceStyle): {
+    cube: THREE.CanvasTexture[];
+    solid: THREE.CanvasTexture[];
+};
 /** A labelling of the cube's faces that puts School `chosen` on face `up`: the base labelling turned by one of the cube's 24 rotations, never permuted freely, so R/I, P/W and S/A stay opposite on every throw. */
 export declare function cubeLabelling(up: number, chosen: number): number[];
 /** The same for the solid die: the solid `chosen` on face `up`, opposite faces still summing to ring 5. */
@@ -201,6 +220,8 @@ export interface ClearingOptions {
     ring?: boolean;
     /** The fraction of the element's shorter side the Clearing's rim spans, clamped to 0.2–1. Default DEFAULT_CLEARING_SIZE. */
     clearingSize?: number;
+    /** How the cube and the solid die are drawn. Default 'default'. */
+    faces?: FaceStyle;
 }
 /** The current framing: the fraction of a square element the rim spans at the tray's usual field of view (about 0.99). */
 export declare const DEFAULT_CLEARING_SIZE: number;

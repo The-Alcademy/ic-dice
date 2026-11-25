@@ -1,5 +1,5 @@
 import { type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
-import { type Chosen, type Which } from './dice';
+import { type Chosen, type FaceStyle, type Which } from './dice';
 export type { SkhoolLetter, SolidCode, SubStance };
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
@@ -53,6 +53,15 @@ export interface DiceTrayOptions {
      * Default: the framing the tray has always had, about 0.99 (the rim just inside the element).
      */
     clearingSize?: number;
+    /**
+     * How the cube and the solid die are drawn. Default: 'default', the MetaMind
+     * cube's Faculty letters and the solid die's drawings. 'geocode' (a trial
+     * style, not ruled) draws them as a Hall's geocode reads (D-48): each cube
+     * face a disc in its School's colour carrying the colour letter, and the
+     * solid die's letters T H O D I, the Sphere keeping its drawing. Only the
+     * drawings change: a result lands on the same face in either style.
+     */
+    faces?: FaceStyle;
     /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
     onChosen?: (result: RollResult) => void;
 }

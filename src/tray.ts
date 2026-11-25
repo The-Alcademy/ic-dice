@@ -13,7 +13,7 @@
 // document.fonts, and destroy() takes it away again.
 
 import { CUBE, TETRA, SOLIDS, type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
-import { createClearing, paperInk, type Chosen, type Clearing, type Impact, type Landing, type Which } from './dice';
+import { createClearing, faceStyle, paperInk, type Chosen, type FaceStyle, type Clearing, type Impact, type Landing, type Which } from './dice';
 import jostUrl from './fonts/jost-variable-latin.woff2?url';
 
 // The sounds, one module each, inlined by the build (see src/sounds/ATTRIBUTION.md).
@@ -85,6 +85,15 @@ export interface DiceTrayOptions {
    * Default: the framing the tray has always had, about 0.99 (the rim just inside the element).
    */
   clearingSize?: number;
+  /**
+   * How the cube and the solid die are drawn. Default: 'default', the MetaMind
+   * cube's Faculty letters and the solid die's drawings. 'geocode' (a trial
+   * style, not ruled) draws them as a Hall's geocode reads (D-48): each cube
+   * face a disc in its School's colour carrying the colour letter, and the
+   * solid die's letters T H O D I, the Sphere keeping its drawing. Only the
+   * drawings change: a result lands on the same face in either style.
+   */
+  faces?: FaceStyle;
   /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
   onChosen?: (result: RollResult) => void;
 }
@@ -237,6 +246,7 @@ const SHOW_MS = 450;
 export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): DiceTray {
   let soundOn = opts.sound ?? true;
   let paper: Paper = opts.paper ?? 'light';
+  const faces = faceStyle(opts.faces); // an unknown style is refused here, at mount
   let destroyed = false;
   let lastSound = 0;
   const playing = new Set<HTMLAudioElement>();
@@ -267,7 +277,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   // the cube's letters are drawn into canvases once, so Jost has to be here first
   const ready = acquireJost().then(() => {
     if (destroyed) return;
-    clearing = createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize });
+    clearing = createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize, faces });
     clearing.onImpact = (hit: Impact) => play(hit.kind === 'die' ? 'clack' : 'tray', hit.speed / 9);
     clearing.onLand = () => play('land', 0.8);
   });

@@ -87,6 +87,6 @@ describe('createClearing', () => {
     expect(body).toContain("clearingScene(paper, options.ring ?? true)");
     expect(body).toContain('camera.fov = clearingFov(options.clearingSize, width, height);');
     const tray = readFileSync(new URL('../src/tray.ts', import.meta.url), 'utf8');
-    expect(tray).toContain('createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize })');
+    expect(tray).toContain('createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize, faces })');
   });
 });

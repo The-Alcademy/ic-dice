@@ -1059,8 +1059,12 @@ export function landingStyle(style: unknown): LandingStyle {
 
 /** The reading row: across the middle of the Clearing, where the camera aims. */
 export const READ_Z = 0.3;
-/** Between the centres of neighbours in the reading row: a cube's width and most of another between them. */
-export const READ_GAP = 2.4;
+/**
+ * Between the centres of neighbours in the reading row: wide enough that two
+ * dice undecided where they lie (unset(), standing on a corner, leaning) are
+ * still well clear of each other, each reaching at most CUBE_REACH from its centre.
+ */
+export const READ_GAP = 2.8;
 
 /**
  * Where each die is set out to be read: in a row across the middle, in the
@@ -1077,6 +1081,8 @@ export function readingSpots(which: readonly Which[]): Partial<Record<Which, THR
 
 /** The truncated cube's vertices, from its centre: the points a tilted die can rest on. */
 const CUBE_POINTS: V3[] = truncatedCube().vertices;
+/** The farthest any part of a six-sided die reaches from its centre, however it is turned. */
+export const CUBE_REACH = Math.max(...CUBE_POINTS.map((v) => Math.hypot(...v)));
 /** How high a six-sided die's centre sits when its lowest point touches the floor. */
 export function cubeRestHeight(q: THREE.Quaternion): number {
   return -Math.min(...CUBE_POINTS.map((v) => new THREE.Vector3(...v).applyQuaternion(q).y));

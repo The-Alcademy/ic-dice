@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { CUBE, TETRA } from '../src/faces';
+import { contrast } from '../src/dice';
 
 describe('the MetaMind cube', () => {
   it('has exactly six faces, in mandala order: Purple at north, then clockwise', () => {
@@ -38,14 +40,14 @@ describe('the sub-stance tetrahedron', () => {
 });
 
 describe('the School colours', () => {
-  it('are ic-house-style’s palette (tokens/tokens.json at 50548ff): core for marks, glow for them on dark, deep for letters', () => {
+  it('are ic-house-style’s palette (tokens/tokens.json 1.5.0 at 0c22ece: D-179, D-180): core for marks, glow for them on dark, deep for letters', () => {
     expect(CUBE.map((s) => [s.facultyLetter, s.colour, s.core, s.glow, s.deep])).toEqual([
-      ['R', 'Purple', '#a879e0', '#c6a3f0', '#8441d3'],
-      ['P', 'Red', '#c14a55', '#e08a90', '#b43e49'],
-      ['S', 'Orange', '#cf8331', '#e6a566', '#905b21'],
-      ['I', 'Yellow', '#caa62c', '#ddc766', '#7a651b'],
-      ['W', 'Green', '#5c9a55', '#88c081', '#43713e'],
-      ['A', 'Blue', '#5285c4', '#82a8dc', '#3869a5'],
+      ['R', 'Purple', '#8659a3', '#c8a5df', '#66248e'],
+      ['P', 'Red', '#cc2f2a', '#f28176', '#b9191a'],
+      ['S', 'Orange', '#ec8a1c', '#ffae5f', '#995705'],
+      ['I', 'Yellow', '#f5cc1f', '#ffe968', '#7a6500'],
+      ['W', 'Green', '#3f8148', '#84c08a', '#295930'],
+      ['A', 'Blue', '#264792', '#92a2e7', '#022e74'],
     ]);
   });
 
@@ -66,5 +68,14 @@ describe('the School colours', () => {
       expect(s).not.toHaveProperty('letter');
       expect(s).not.toHaveProperty('hex');
     }
+  });
+});
+
+describe('the Faculty letters on the default cube (D-179, D-180)', () => {
+  it("each School's deep reaches at least 3:1 on the cube's pale wood", () => {
+    // the wood the cube's faces are drawn on, read from dice.ts so the check follows it
+    const wood = readFileSync(new URL('../src/dice.ts', import.meta.url), 'utf8').match(/const WOOD_BASE = '(#[0-9A-Fa-f]{6})'/)![1];
+    expect(wood).toBe('#E6D2AE');
+    for (const s of CUBE) expect(contrast(s.deep, wood), `${s.facultyLetter} ${s.deep} on ${wood}`).toBeGreaterThanOrEqual(3);
   });
 });

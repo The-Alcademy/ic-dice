@@ -322,11 +322,12 @@ There is a sound toggle beside the Throw button, and the choice is remembered.
 
 ## School colours
 
-The six School colours are ic-house-style's palette (`tokens/tokens.json` at
-`50548ff`), which is canonical: `core` colours the landing ripple on light paper,
-`glow` colours it on dark, and `deep`, the
-colour for text on pale ground, letters the cube's wood faces (about 3.8:1 on the
-wood for every School). ic-house-style is private, so the values are copied into
+The six School colours are ic-house-style's palette (`tokens/tokens.json` 1.5.0,
+at `0c22ece`), the College's one Skhool palette (D-179, D-180), the same as the
+canon's geoglyphs: `core` colours the landing ripple on light paper and the
+geocode discs, `glow` colours the ripple on dark, and `deep`, the colour for text
+on pale ground, letters the cube's wood faces (3.8:1 to 8.6:1 on the wood; a
+test holds every School to at least 3:1). ic-house-style is private, so the values are copied into
 `src/faces.ts`, and `tests/faces.test.ts` pins them. Each School's letter is its
 Faculty's initial, `facultyLetter` (R P S I W A), not the colour's initial
 (ic-house-style's `colourLetter`, R O Y G B P, used for geocodes); no field is

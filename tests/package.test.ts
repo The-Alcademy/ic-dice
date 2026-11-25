@@ -84,7 +84,7 @@ describe('undeciding a die', () => {
     const { CUBE, INK, nextSchool, rippleColour } = pkg;
     // unset() sets the orientation's School to null; the rule it hands to the ripple
     const set = nextSchool(null, CUBE.findIndex((s) => s.facultyLetter === 'W'));
-    expect(rippleColour(set)).toBe('#5c9a55'); // WEAVE's core
+    expect(rippleColour(set)).toBe('#3f8148'); // WEAVE's core
     expect(rippleColour(null)).toBe(INK);
   });
 });
@@ -102,12 +102,12 @@ describe('the landing ripple', () => {
     // set ALIGN by hand, then throw only the tetrahedron: its ripple is ALIGN's blue
     let school = nextSchool(null, at('A'));
     school = nextSchool(school, undefined);
-    expect(rippleColour(school)).toBe('#5285c4'); // ALIGN's core
+    expect(rippleColour(school)).toBe('#264792'); // ALIGN's core
     // throw the cube onto PILOT: from then on it is PILOT's red
     school = nextSchool(school, at('P'));
-    expect(rippleColour(nextSchool(school, undefined))).toBe('#c14a55'); // PILOT's core
+    expect(rippleColour(nextSchool(school, undefined))).toBe('#cc2f2a'); // PILOT's core
     // set REBIS by hand after that: REBIS's purple
-    expect(rippleColour(nextSchool(school, at('R')))).toBe('#a879e0'); // REBIS's core
+    expect(rippleColour(nextSchool(school, at('R')))).toBe('#8659a3'); // REBIS's core
   });
 });
 
@@ -116,14 +116,14 @@ describe('the paper', () => {
 
   it('is light unless the host says otherwise: the ripples keep their light-paper colours', () => {
     expect(rippleColour(null)).toBe(INK);
-    expect(rippleColour(schoolByLetter('W'))).toBe('#5c9a55');
+    expect(rippleColour(schoolByLetter('W'))).toBe('#3f8148');
   });
 
   it('on dark, draws in light ink, and each School ripples in its glow', () => {
     expect(INK_ON_DARK).toBe('#eae2d0'); // ic-house-style's dark-paper text
     expect(rippleColour(null, 'dark')).toBe(INK_ON_DARK);
     for (const s of CUBE) expect(rippleColour(s, 'dark')).toBe(s.glow);
-    expect(rippleColour(schoolByLetter('R'), 'dark')).toBe('#c6a3f0'); // REBIS's glow
+    expect(rippleColour(schoolByLetter('R'), 'dark')).toBe('#c8a5df'); // REBIS's glow
   });
 
   it('is an option of the tray, and can be changed once it is mounted', () => {

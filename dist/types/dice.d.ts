@@ -190,6 +190,29 @@ export interface Landing {
 }
 /** Which dice, and onto which result (an index into CUBE / TETRA / SOLIDS). */
 export type Chosen = Partial<Record<Which, number>>;
+/** What happens when the dice land: ripples ring out ('ripple'), or the dice are set out to be read ('arrange'). */
+export type LandingStyle = 'ripple' | 'arrange';
+/** A landing style; left out, it is 'ripple'. Anything else is refused clearly. */
+export declare function landingStyle(style: unknown): LandingStyle;
+/** The reading row: across the middle of the Clearing, where the camera aims. */
+export declare const READ_Z = 0.3;
+/** Between the centres of neighbours in the reading row: a cube's width and most of another between them. */
+export declare const READ_GAP = 2.4;
+/**
+ * Where each die is set out to be read: in a row across the middle, in the
+ * dice's own order (the colour die, the tetrahedron, the solid die), so the
+ * colour die is on the left and the solid die on the right and the pair reads
+ * as a Hall's geocode, left to right (D-48).
+ */
+export declare function readingSpots(which: readonly Which[]): Partial<Record<Which, THREE.Vector3>>;
+/** How high a six-sided die's centre sits when its lowest point touches the floor. */
+export declare function cubeRestHeight(q: THREE.Quaternion): number;
+/**
+ * A six-sided die's reading pose at `at`: the face carrying `chosen` turned to
+ * look straight at the camera, its letter upright on the screen, and the die
+ * lowered until its lowest corner touches the floor.
+ */
+export declare function cubeReadPose(labels: number[], chosen: number, at: THREE.Vector3): Pose;
 export interface Clearing {
     /** Throw the named dice so they land on the chosen results. A parked die is unparked first; a die off the table comes onto it. */
     roll(chosen: Chosen): Promise<Landing>;
@@ -214,6 +237,13 @@ export interface Clearing {
     park(which: Which[], ms: number): Promise<void>;
     /** Bring parked dice (all, unless named) back down onto the Clearing, clear of the dice there. */
     unpark(which: Which[] | undefined, ms: number): Promise<void>;
+    /**
+     * Set the named dice out to be read (see readingSpots): each carried to its
+     * place in the row and turned so the face it shows looks at the camera, the
+     * tetrahedron still on its face, apex up. Every other die on the Clearing joins
+     * the row as it lies. `ms` 0 is at once. Resolves with what the named dice show.
+     */
+    arrange(chosen: Chosen, ms: number): Promise<Landing>;
     /** Where each die is. */
     readonly table: DiceTable;
     /** Draw the ring and the shadows for this paper. */

@@ -204,6 +204,24 @@ darker wood as before. Any other value is refused at mount.
 mountDiceTray(el, { faces: 'geocode', solidWood: 'plain' }); // both dice in the same wood
 ```
 
+`landing: 'arrange'` (a trial, 25 Nov 2026, not ruled) rings no landing
+ripples. Once the thrown dice come to rest they glide (about 450 ms; at once
+under reduced motion) to a row across the middle of the Clearing, to be read:
+the colour die on the left, the tetrahedron in the middle if it is on the
+Clearing, the solid die on the right, so a pair reads as a Hall's geocode left
+to right (D-48). Each six-sided die is tilted towards the camera, by about 20°
+and always well under 45°, so the face it landed on looks at the viewer with its
+letter upright. That face is still the one that is up, so the result is the
+same. The default, `landing: 'ripple'`, is as before. Any other value is refused
+at mount.
+
+```ts
+const tray = mountDiceTray(el, { faces: 'geocode', solidWood: 'plain', landing: 'arrange' });
+await tray.park({ subStance: true });
+await tray.unset({ skhool: true, solid: true }); // both dice on the Clearing, on a corner, before the throw
+await tray.roll({ skhool: 'random', solid: 'random' }); // then set out side by side, to be read
+```
+
 The package also exports the faces (`CUBE`, `TETRA`, `schoolByLetter`, the
 `SkhoolLetter` and `SubStance` types), the solids (`SOLIDS`, `solidByCode`,
 `geocodeFor`, the `Solid` and `SolidCode` types) and the Porter's lines

@@ -1,5 +1,5 @@
 import { type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
-import { type Chosen, type FaceStyle, type Which } from './dice';
+import { type Chosen, type FaceStyle, type SolidWood, type Which } from './dice';
 export type { SkhoolLetter, SolidCode, SubStance };
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
@@ -62,6 +62,13 @@ export interface DiceTrayOptions {
      * drawings change: a result lands on the same face in either style.
      */
     faces?: FaceStyle;
+    /**
+     * The solid die's wood. Default: 'stained', darker than the cube so the two
+     * are never confused. 'plain' (a trial, not ruled) makes it the same light
+     * wood as the cube, grain, colour and corners: for faces: 'geocode', where the
+     * faces already tell the two dice apart. Only the wood changes.
+     */
+    solidWood?: SolidWood;
     /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
     onChosen?: (result: RollResult) => void;
 }

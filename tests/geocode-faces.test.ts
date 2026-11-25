@@ -45,7 +45,7 @@ describe('the faces option', () => {
     expect(tray).toContain('const faces = faceStyle(opts.faces);');
     const dice = readFileSync(new URL('../src/dice.ts', import.meta.url), 'utf8');
     const body = dice.slice(dice.indexOf('export function createClearing('));
-    expect(body).toContain('faceTextures(faceStyle(options.faces))');
+    expect(body).toContain('faceTextures(faceStyle(options.faces), wood)');
     // the relabelling still picks a face's drawing by its School or solid, in either style
     expect(body).toContain('m.map = letterTextures[cubeLabels[f]];');
     expect(body).toContain('m.map = solidTextures[solidLabels[f]];');

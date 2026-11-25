@@ -154,7 +154,21 @@ function texture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
   return t;
 }
 
-/** The solid die's wood: the same grain, stained darker, so it is never taken for the MetaMind cube. */
+/**
+ * The solid die's wood: the same grain, stained darker, so it is never taken for
+ * the MetaMind cube. With solidWood: 'plain' (a trial, Matthew, 25 Nov 2026; not
+ * ruled) it is the cube's own light wood instead: meant for faces: 'geocode',
+ * where the faces already tell the two dice apart.
+ */
+export type SolidWood = 'stained' | 'plain';
+
+/** A solid-die wood; left out, it is 'stained'. Anything else is refused clearly. */
+export function solidWood(wood: unknown): SolidWood {
+  if (wood === undefined) return 'stained';
+  if (wood === 'stained' || wood === 'plain') return wood;
+  throw new Error(`No solid wood "${String(wood)}": it is 'stained' or 'plain'`);
+}
+
 const STAIN_BASE = '#8A6844';
 function stainedCanvas(size = 256): HTMLCanvasElement {
   const c = woodCanvas(size);
@@ -164,6 +178,14 @@ function stainedCanvas(size = 256): HTMLCanvasElement {
   g.fillRect(0, 0, size, size);
   g.globalCompositeOperation = 'source-over';
   return c;
+}
+
+/** The ground the solid die's faces are drawn on, in its wood. */
+const solidCanvas = (wood: SolidWood, size = 256): HTMLCanvasElement => (wood === 'plain' ? woodCanvas(size) : stainedCanvas(size));
+
+/** The colour of a die's cut corners: the light wood, or (the solid die, stained) the wood multiplied by the stain, as on its faces. */
+export function cornerColour(stained: boolean): THREE.Color {
+  return stained ? new THREE.Color(WOOD_BASE).multiply(new THREE.Color(STAIN_BASE)) : new THREE.Color(WOOD_BASE);
 }
 
 /** How each solid is seen when it is drawn on the die: a little from above and to one side. */
@@ -210,10 +232,10 @@ export function solidDrawing(code: string): [number, number, number, number][] {
   return segments.map(([x1, y1, x2, y2]) => [(x1 - cx) * k, (y1 - cy) * k, (x2 - cx) * k, (y2 - cy) * k]);
 }
 
-/** A face of the solid die: its solid, drawn in ink on the stained wood. */
-function solidTexture(solid: (typeof SOLIDS)[number]): THREE.CanvasTexture {
+/** A face of the solid die: its solid, drawn in ink on its wood (stained, unless solidWood is 'plain'). */
+function solidTexture(solid: (typeof SOLIDS)[number], wood: SolidWood = 'stained'): THREE.CanvasTexture {
   const size = 256;
-  const c = stainedCanvas(size);
+  const c = solidCanvas(wood, size);
   const g = c.getContext('2d')!;
   g.strokeStyle = INK;
   g.lineCap = 'round';
@@ -299,10 +321,10 @@ function discTexture(school: School): THREE.CanvasTexture {
   return texture(c);
 }
 
-/** A geocode solid face: the solid's letter in ink on the stained wood; the Sphere (the Clearing, not a Hall: D-07) keeps its drawing. */
-function solidLetterTexture(solid: (typeof SOLIDS)[number]): THREE.CanvasTexture {
-  if (solid.code === 'S') return solidTexture(solid);
-  const c = stainedCanvas();
+/** A geocode solid face: the solid's letter in ink on its wood; the Sphere (the Clearing, not a Hall: D-07) keeps its drawing. */
+function solidLetterTexture(solid: (typeof SOLIDS)[number], wood: SolidWood = 'stained'): THREE.CanvasTexture {
+  if (solid.code === 'S') return solidTexture(solid, wood);
+  const c = solidCanvas(wood);
   const g = c.getContext('2d')!;
   g.fillStyle = INK;
   g.font = '600 150px Jost, sans-serif';
@@ -317,10 +339,10 @@ function solidLetterTexture(solid: (typeof SOLIDS)[number]): THREE.CanvasTexture
  * SOLIDS are, so the relabelling picks the same School or solid for a face
  * whichever style is drawn.
  */
-export function faceTextures(style: FaceStyle): { cube: THREE.CanvasTexture[]; solid: THREE.CanvasTexture[] } {
+export function faceTextures(style: FaceStyle, wood: SolidWood = 'stained'): { cube: THREE.CanvasTexture[]; solid: THREE.CanvasTexture[] } {
   return style === 'geocode'
-    ? { cube: CUBE.map(discTexture), solid: SOLIDS.map(solidLetterTexture) }
-    : { cube: CUBE.map(letterTexture), solid: SOLIDS.map(solidTexture) };
+    ? { cube: CUBE.map(discTexture), solid: SOLIDS.map((s) => solidLetterTexture(s, wood)) }
+    : { cube: CUBE.map(letterTexture), solid: SOLIDS.map((s) => solidTexture(s, wood)) };
 }
 
 /** The four Chamber icons, drawn in ink as simple line pictures, centred on 0,0, about 1 unit tall. */
@@ -446,7 +468,7 @@ function cubeMesh(stained = false): { mesh: THREE.Mesh; faceMaterials: THREE.Mes
   const wood = texture(stained ? stainedCanvas() : woodCanvas());
   const faceMaterials = CUBE_FACES.map(() => new THREE.MeshStandardMaterial({ map: wood, roughness: 0.7 }));
   // the solid die's corners take the stain too: multiplied, as on its faces
-  const corner = new THREE.MeshStandardMaterial({ color: stained ? new THREE.Color(WOOD_BASE).multiply(new THREE.Color(STAIN_BASE)) : WOOD_BASE, roughness: 0.75 });
+  const corner = new THREE.MeshStandardMaterial({ color: cornerColour(stained), roughness: 0.75 });
   const mesh = new THREE.Mesh(geo, [...faceMaterials, corner]);
   mesh.castShadow = true;
   mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 10), ink));
@@ -1065,6 +1087,8 @@ export interface ClearingOptions {
   clearingSize?: number;
   /** How the cube and the solid die are drawn. Default 'default'. */
   faces?: FaceStyle;
+  /** The solid die's wood. Default 'stained'; 'plain' is the cube's own light wood. */
+  solidWood?: SolidWood;
 }
 
 /** Where the camera looks at the Clearing from, and at: fixed; its field of view sets the size. */
@@ -1174,11 +1198,12 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
 
   const cube = cubeMesh();
   const tetra = tetraMesh();
-  const solid = cubeMesh(true);
+  const wood = solidWood(options.solidWood);
+  const solid = cubeMesh(wood === 'stained');
   scene.add(cube.mesh, tetra.mesh, solid.mesh);
   const meshes: Record<Which, THREE.Mesh> = { cube: cube.mesh, tetra: tetra.mesh, solid: solid.mesh };
 
-  const { cube: letterTextures, solid: solidTextures } = faceTextures(faceStyle(options.faces));
+  const { cube: letterTextures, solid: solidTextures } = faceTextures(faceStyle(options.faces), wood);
   const tetraTextures = new Map<string, THREE.CanvasTexture>();
 
   let cubeLabels = [...CUBE_BASE];

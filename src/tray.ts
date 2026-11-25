@@ -13,7 +13,7 @@
 // document.fonts, and destroy() takes it away again.
 
 import { CUBE, TETRA, SOLIDS, type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
-import { createClearing, faceStyle, paperInk, type Chosen, type FaceStyle, type Clearing, type Impact, type Landing, type Which } from './dice';
+import { createClearing, faceStyle, solidWood, paperInk, type Chosen, type FaceStyle, type SolidWood, type Clearing, type Impact, type Landing, type Which } from './dice';
 import jostUrl from './fonts/jost-variable-latin.woff2?url';
 
 // The sounds, one module each, inlined by the build (see src/sounds/ATTRIBUTION.md).
@@ -94,6 +94,13 @@ export interface DiceTrayOptions {
    * drawings change: a result lands on the same face in either style.
    */
   faces?: FaceStyle;
+  /**
+   * The solid die's wood. Default: 'stained', darker than the cube so the two
+   * are never confused. 'plain' (a trial, not ruled) makes it the same light
+   * wood as the cube, grain, colour and corners: for faces: 'geocode', where the
+   * faces already tell the two dice apart. Only the wood changes.
+   */
+  solidWood?: SolidWood;
   /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
   onChosen?: (result: RollResult) => void;
 }
@@ -247,6 +254,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   let soundOn = opts.sound ?? true;
   let paper: Paper = opts.paper ?? 'light';
   const faces = faceStyle(opts.faces); // an unknown style is refused here, at mount
+  const wood = solidWood(opts.solidWood); // and so is an unknown wood
   let destroyed = false;
   let lastSound = 0;
   const playing = new Set<HTMLAudioElement>();
@@ -277,7 +285,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   // the cube's letters are drawn into canvases once, so Jost has to be here first
   const ready = acquireJost().then(() => {
     if (destroyed) return;
-    clearing = createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize, faces });
+    clearing = createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize, faces, solidWood: wood });
     clearing.onImpact = (hit: Impact) => play(hit.kind === 'die' ? 'clack' : 'tray', hit.speed / 9);
     clearing.onLand = () => play('land', 0.8);
   });

@@ -19,6 +19,17 @@ export declare const CUBE_BASE: number[];
  */
 export declare const SOLID_BASE: number[];
 /**
+ * The solid die's wood: the same grain, stained darker, so it is never taken for
+ * the MetaMind cube. With solidWood: 'plain' (a trial, Matthew, 25 Nov 2026; not
+ * ruled) it is the cube's own light wood instead: meant for faces: 'geocode',
+ * where the faces already tell the two dice apart.
+ */
+export type SolidWood = 'stained' | 'plain';
+/** A solid-die wood; left out, it is 'stained'. Anything else is refused clearly. */
+export declare function solidWood(wood: unknown): SolidWood;
+/** The colour of a die's cut corners: the light wood, or (the solid die, stained) the wood multiplied by the stain, as on its faces. */
+export declare function cornerColour(stained: boolean): THREE.Color;
+/**
  * A solid as drawn on a face of the solid die: the edges of its faces turned
  * towards the viewer, in 2D, fitted to a unit box centred on 0,0 (y down, as a
  * canvas draws). The Sphere has no edges: its outline and one great circle are
@@ -40,7 +51,7 @@ export declare const discLetterColour: (core: string) => string;
  * SOLIDS are, so the relabelling picks the same School or solid for a face
  * whichever style is drawn.
  */
-export declare function faceTextures(style: FaceStyle): {
+export declare function faceTextures(style: FaceStyle, wood?: SolidWood): {
     cube: THREE.CanvasTexture[];
     solid: THREE.CanvasTexture[];
 };
@@ -222,6 +233,8 @@ export interface ClearingOptions {
     clearingSize?: number;
     /** How the cube and the solid die are drawn. Default 'default'. */
     faces?: FaceStyle;
+    /** The solid die's wood. Default 'stained'; 'plain' is the cube's own light wood. */
+    solidWood?: SolidWood;
 }
 /** The current framing: the fraction of a square element the rim spans at the tray's usual field of view (about 0.99). */
 export declare const DEFAULT_CLEARING_SIZE: number;

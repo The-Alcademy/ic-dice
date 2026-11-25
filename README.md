@@ -194,6 +194,16 @@ the same in both styles. Any other value is refused at mount.
 mountDiceTray(el, { faces: 'geocode' }); // Orange and the Octahedron read O, O: the Hall OO
 ```
 
+With geocode faces the two dice already read apart, so the solid die can drop
+its stain: `solidWood: 'plain'` (a trial, 25 Nov 2026, not ruled) draws it in
+the colour die's own light wood, with the same grain, colour and corners, its
+letters and drawings still in ink. The default, `solidWood: 'stained'`, is the
+darker wood as before. Any other value is refused at mount.
+
+```ts
+mountDiceTray(el, { faces: 'geocode', solidWood: 'plain' }); // both dice in the same wood
+```
+
 The package also exports the faces (`CUBE`, `TETRA`, `schoolByLetter`, the
 `SkhoolLetter` and `SubStance` types), the solids (`SOLIDS`, `solidByCode`,
 `geocodeFor`, the `Solid` and `SolidCode` types) and the Porter's lines

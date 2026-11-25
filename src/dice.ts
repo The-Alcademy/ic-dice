@@ -21,7 +21,7 @@
 
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { CUBE, TETRA, SOLIDS, INK, INK_ON_DARK, type Paper, type School, type SubStance, type SubRoomIcon } from './faces';
+import { CUBE, TETRA, SOLIDS, INK, INK_ON_DARK, geocodeFor, type Paper, type School, type SubStance, type SubRoomIcon } from './faces';
 
 // ---------------------------------------------------------------- geometry --
 
@@ -249,6 +249,78 @@ function letterTexture(school: School): THREE.CanvasTexture {
   g.textBaseline = 'middle';
   g.fillText(school.facultyLetter, 128, 138);
   return texture(c);
+}
+
+// ------------------------------------------------- the geocode face style --
+// A trial style (Matthew's direction, 25 Nov 2026; not ruled): the cube and the
+// solid die read as a Hall's geocode (D-48), the colour letter then the solid
+// letter. Only the drawings change: which face carries which School or solid,
+// and so where a result lands, is the same in both styles.
+
+/** How the cube and the solid die are drawn: 'default' (the MetaMind cube's Faculty letters) or 'geocode'. */
+export type FaceStyle = 'default' | 'geocode';
+
+/** A face style; left out, it is 'default'. Anything else is refused clearly. */
+export function faceStyle(style: unknown): FaceStyle {
+  if (style === undefined) return 'default';
+  if (style === 'default' || style === 'geocode') return style;
+  throw new Error(`No face style "${String(style)}": it is 'default' or 'geocode'`);
+}
+
+/** A School's colour letter, as a geocode begins (D-48), read from geocodeFor so faces.ts stays the one source. */
+export const colourLetter = (school: School): string => geocodeFor(school.facultyLetter, 'T')!.charAt(0);
+
+const luminance = (hex: string): number => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+/** The WCAG contrast ratio of two #rrggbb colours. */
+export function contrast(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+const PALE_LETTER = '#ffffff';
+/** The letter on a School's disc: ink or white, whichever stands out more from the disc's colour. */
+export const discLetterColour = (core: string): string => (contrast(core, INK) >= contrast(core, PALE_LETTER) ? INK : PALE_LETTER);
+
+/** A geocode cube face: a disc in the School's colour on the pale wood, its colour letter in the middle. */
+function discTexture(school: School): THREE.CanvasTexture {
+  const c = woodCanvas();
+  const g = c.getContext('2d')!;
+  g.fillStyle = school.core;
+  g.beginPath();
+  g.arc(128, 128, 94, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = discLetterColour(school.core);
+  g.font = '600 120px Jost, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(colourLetter(school), 128, 136);
+  return texture(c);
+}
+
+/** A geocode solid face: the solid's letter in ink on the stained wood; the Sphere (the Clearing, not a Hall: D-07) keeps its drawing. */
+function solidLetterTexture(solid: (typeof SOLIDS)[number]): THREE.CanvasTexture {
+  if (solid.code === 'S') return solidTexture(solid);
+  const c = stainedCanvas();
+  const g = c.getContext('2d')!;
+  g.fillStyle = INK;
+  g.font = '600 150px Jost, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(solid.code, 128, 138);
+  return texture(c);
+}
+
+/**
+ * The cube's and the solid die's face drawings in a style, indexed as CUBE and
+ * SOLIDS are, so the relabelling picks the same School or solid for a face
+ * whichever style is drawn.
+ */
+export function faceTextures(style: FaceStyle): { cube: THREE.CanvasTexture[]; solid: THREE.CanvasTexture[] } {
+  return style === 'geocode'
+    ? { cube: CUBE.map(discTexture), solid: SOLIDS.map(solidLetterTexture) }
+    : { cube: CUBE.map(letterTexture), solid: SOLIDS.map(solidTexture) };
 }
 
 /** The four Chamber icons, drawn in ink as simple line pictures, centred on 0,0, about 1 unit tall. */
@@ -991,6 +1063,8 @@ export interface ClearingOptions {
   ring?: boolean;
   /** The fraction of the element's shorter side the Clearing's rim spans, clamped to 0.2–1. Default DEFAULT_CLEARING_SIZE. */
   clearingSize?: number;
+  /** How the cube and the solid die are drawn. Default 'default'. */
+  faces?: FaceStyle;
 }
 
 /** Where the camera looks at the Clearing from, and at: fixed; its field of view sets the size. */
@@ -1104,9 +1178,8 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
   scene.add(cube.mesh, tetra.mesh, solid.mesh);
   const meshes: Record<Which, THREE.Mesh> = { cube: cube.mesh, tetra: tetra.mesh, solid: solid.mesh };
 
-  const letterTextures = CUBE.map(letterTexture);
+  const { cube: letterTextures, solid: solidTextures } = faceTextures(faceStyle(options.faces));
   const tetraTextures = new Map<string, THREE.CanvasTexture>();
-  const solidTextures = SOLIDS.map(solidTexture);
 
   let cubeLabels = [...CUBE_BASE];
   let tetraLabels = [0, 1, 2, 3];

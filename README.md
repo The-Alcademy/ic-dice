@@ -171,6 +171,29 @@ hallLine(schoolByLetter(skhool!), solidByCode(solid!)); // "You are bound for GI
 await tray.unpark();
 ```
 
+### Geocode faces: `faces: 'geocode'`
+
+A trial face style (25 Nov 2026, not ruled) that draws the cube and the solid
+die so the two read as a Hall's geocode, the colour letter then the solid
+letter (D-42, D-48). The default, `faces: 'default'`, is the MetaMind cube as
+it has always been.
+
+- **The cube:** each face is a disc in its School's `core` colour on the same
+  pale wood, carrying its colour letter in the middle (`R O Y G B P`), in ink or
+  white, whichever gives at least 3:1 against the disc, so the face reads
+  without telling the colours apart.
+- **The solid die:** the letters `T H O D I` in ink on the same stained wood.
+  The Sphere's face keeps its drawing and has no letter: the Sphere is the
+  Clearing, not a Hall (D-07).
+
+Only the drawings change. Face order, opposite pairs, results (`skhool` is
+still the Faculty letter), `geocodeFor`, and which face a result lands on are
+the same in both styles. Any other value is refused at mount.
+
+```ts
+mountDiceTray(el, { faces: 'geocode' }); // Orange and the Octahedron read O, O: the Hall OO
+```
+
 The package also exports the faces (`CUBE`, `TETRA`, `schoolByLetter`, the
 `SkhoolLetter` and `SubStance` types), the solids (`SOLIDS`, `solidByCode`,
 `geocodeFor`, the `Solid` and `SolidCode` types) and the Porter's lines

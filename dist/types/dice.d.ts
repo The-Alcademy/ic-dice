@@ -196,8 +196,12 @@ export type LandingStyle = 'ripple' | 'arrange';
 export declare function landingStyle(style: unknown): LandingStyle;
 /** The reading row: across the middle of the Clearing, where the camera aims. */
 export declare const READ_Z = 0.3;
-/** Between the centres of neighbours in the reading row: a cube's width and most of another between them. */
-export declare const READ_GAP = 2.4;
+/**
+ * Between the centres of neighbours in the reading row: wide enough that two
+ * dice undecided where they lie (unset(), standing on a corner, leaning) are
+ * still well clear of each other, each reaching at most CUBE_REACH from its centre.
+ */
+export declare const READ_GAP = 2.8;
 /**
  * Where each die is set out to be read: in a row across the middle, in the
  * dice's own order (the colour die, the tetrahedron, the solid die), so the
@@ -205,6 +209,8 @@ export declare const READ_GAP = 2.4;
  * as a Hall's geocode, left to right (D-48).
  */
 export declare function readingSpots(which: readonly Which[]): Partial<Record<Which, THREE.Vector3>>;
+/** The farthest any part of a six-sided die reaches from its centre, however it is turned. */
+export declare const CUBE_REACH: number;
 /** How high a six-sided die's centre sits when its lowest point touches the floor. */
 export declare function cubeRestHeight(q: THREE.Quaternion): number;
 /**

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
-  CUBE_FACES, READ_GAP, READ_Z, cubeLabelling, cubeReadPose, cubeRestHeight, cubeShows, landingStyle, readingSpots, solidLabelling, type Which,
+  CUBE_FACES, CUBE_REACH, READ_GAP, READ_Z, cubeLabelling, cubeReadPose, cubeRestHeight, cubeShows, landingStyle, readingSpots, solidLabelling, type Which,
 } from '../src/dice';
 import { landingRipples } from '../src/tray';
 
@@ -65,9 +65,11 @@ describe('the reading row', () => {
   it('keeps every die inside the Clearing, clear of its neighbour', () => {
     for (const row of [['cube'], ['cube', 'solid'], ['cube', 'tetra', 'solid']] as Which[][]) {
       const spots = Object.values(readingSpots(row));
-      for (const p of spots) expect(Math.hypot(p!.x, p!.z) + 1.05).toBeLessThan(5.2); // a die's half-diagonal inside the rim
+      for (const p of spots) expect(Math.hypot(p!.x, p!.z) + CUBE_REACH).toBeLessThan(5.2); // the whole die inside the rim
     }
-    expect(READ_GAP).toBeGreaterThan(2 * 1.05); // neighbours never touch, however they are turned
+    expect(CUBE_REACH).toBeCloseTo(1.187, 3);
+    // neighbours never touch, however they are turned, with room to spare when both are undecided on a corner
+    expect(READ_GAP - 2 * CUBE_REACH).toBeGreaterThan(0.4);
   });
 });
 

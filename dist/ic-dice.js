@@ -797,12 +797,13 @@ function wt(e) {
 	if (e === "ripple" || e === "arrange") return e;
 	throw Error(`No landing "${String(e)}": it is 'ripple' or 'arrange'`);
 }
-var Tt = .3, Et = 2.4;
+var Tt = .3, Et = 2.8;
 function Dt(e) {
 	let t = J.filter((t) => e.includes(t)), n = {};
 	return t.forEach((e, r) => n[e] = new u.Vector3((r - (t.length - 1) / 2) * Et, 0, Tt)), n;
 }
 var Ot = oe().vertices;
+Math.max(...Ot.map((e) => Math.hypot(...e)));
 function kt(e) {
 	return -Math.min(...Ot.map((t) => new u.Vector3(...t).applyQuaternion(e).y));
 }

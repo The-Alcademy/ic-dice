@@ -1,5 +1,5 @@
 import { type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
-import { type Chosen, type FaceStyle, type SolidWood, type Which } from './dice';
+import { type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Landing, type Which } from './dice';
 export type { SkhoolLetter, SolidCode, SubStance };
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
@@ -69,6 +69,14 @@ export interface DiceTrayOptions {
      * faces already tell the two dice apart. Only the wood changes.
      */
     solidWood?: SolidWood;
+    /**
+     * What happens when the thrown dice come to rest. Default: 'ripple', a ripple
+     * rings out from each die. 'arrange' (a trial, not ruled) rings none: the dice
+     * glide to a row across the middle of the Clearing to be read, the colour die
+     * on the left and the solid die on the right, each turned so the face it landed
+     * on looks at the viewer, its letter upright. The result is the same either way.
+     */
+    landing?: LandingStyle;
     /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
     onChosen?: (result: RollResult) => void;
 }
@@ -130,4 +138,16 @@ export declare function nextSchool(current: School | null, cube: number | undefi
  * there is one: its core on light paper, its glow on dark, as ic-house-style has it.
  */
 export declare function rippleColour(school: School | null, paper?: Paper): string;
+/**
+ * Where the landing ripples ring, and in what colour: one from each thrown die
+ * (the School in the orientation colours them all), or none when the dice are
+ * set out to be read instead.
+ */
+export declare function landingRipples(landing: LandingStyle, chosen: Chosen, landed: Landing, colour: string): {
+    at: {
+        x: number;
+        y: number;
+    };
+    colour: string;
+}[];
 export declare function mountDiceTray(el: HTMLElement, opts?: DiceTrayOptions): DiceTray;

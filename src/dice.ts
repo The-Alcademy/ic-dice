@@ -1040,6 +1040,79 @@ export interface Landing {
 /** Which dice, and onto which result (an index into CUBE / TETRA / SOLIDS). */
 export type Chosen = Partial<Record<Which, number>>;
 
+// ------------------------------------------------------- setting out to read --
+// landing: 'arrange' (a trial, Matthew, 25 Nov 2026; not ruled): instead of
+// ringing ripples, the dice that came to rest are set out side by side in the
+// middle of the Clearing, each turned so the face it landed on looks at the
+// camera, its letter upright. The die is tilted towards the camera by less than
+// 45°, so the face that is up, and so the result read off it, is the same face.
+
+/** What happens when the dice land: ripples ring out ('ripple'), or the dice are set out to be read ('arrange'). */
+export type LandingStyle = 'ripple' | 'arrange';
+
+/** A landing style; left out, it is 'ripple'. Anything else is refused clearly. */
+export function landingStyle(style: unknown): LandingStyle {
+  if (style === undefined) return 'ripple';
+  if (style === 'ripple' || style === 'arrange') return style;
+  throw new Error(`No landing "${String(style)}": it is 'ripple' or 'arrange'`);
+}
+
+/** The reading row: across the middle of the Clearing, where the camera aims. */
+export const READ_Z = 0.3;
+/** Between the centres of neighbours in the reading row: a cube's width and most of another between them. */
+export const READ_GAP = 2.4;
+
+/**
+ * Where each die is set out to be read: in a row across the middle, in the
+ * dice's own order (the colour die, the tetrahedron, the solid die), so the
+ * colour die is on the left and the solid die on the right and the pair reads
+ * as a Hall's geocode, left to right (D-48).
+ */
+export function readingSpots(which: readonly Which[]): Partial<Record<Which, THREE.Vector3>> {
+  const row = DICE.filter((w) => which.includes(w));
+  const out: Partial<Record<Which, THREE.Vector3>> = {};
+  row.forEach((w, i) => (out[w] = new THREE.Vector3((i - (row.length - 1) / 2) * READ_GAP, 0, READ_Z)));
+  return out;
+}
+
+/** The truncated cube's vertices, from its centre: the points a tilted die can rest on. */
+const CUBE_POINTS: V3[] = truncatedCube().vertices;
+/** How high a six-sided die's centre sits when its lowest point touches the floor. */
+export function cubeRestHeight(q: THREE.Quaternion): number {
+  return -Math.min(...CUBE_POINTS.map((v) => new THREE.Vector3(...v).applyQuaternion(q).y));
+}
+
+/** Which way is up on the screen, at `at` on the Clearing: the camera's up, square to the line from `at` to the camera. */
+function screenUp(toEye: THREE.Vector3): THREE.Vector3 {
+  const view = new THREE.Vector3().subVectors(CAMERA_AIM, CAMERA_AT).normalize();
+  const camUp = UP.clone().addScaledVector(view, -UP.dot(view)).normalize(); // a camera looking at its aim with up = +y
+  return camUp.addScaledVector(toEye, -camUp.dot(toEye)).normalize();
+}
+
+/**
+ * A six-sided die's reading pose at `at`: the face carrying `chosen` turned to
+ * look straight at the camera, its letter upright on the screen, and the die
+ * lowered until its lowest corner touches the floor.
+ */
+export function cubeReadPose(labels: number[], chosen: number, at: THREE.Vector3): Pose {
+  const spec = CUBE_FACES[labels.indexOf(chosen)];
+  const n = new THREE.Vector3(...spec.n);
+  const u = new THREE.Vector3(...spec.up);
+  const r = new THREE.Vector3().crossVectors(u, n); // the texture's right, as cubeMesh lays it out
+  const local = new THREE.Matrix4().makeBasis(r, u, n).transpose();
+  // aimed from the die's centre, whose height depends on the tilt: settled in a few rounds
+  const p = new THREE.Vector3(at.x, CUBE_HALF, at.z);
+  const q = new THREE.Quaternion();
+  for (let i = 0; i < 4; i++) {
+    const N = new THREE.Vector3().subVectors(CAMERA_AT, p).normalize();
+    const U = screenUp(N);
+    const R = new THREE.Vector3().crossVectors(U, N);
+    q.setFromRotationMatrix(new THREE.Matrix4().makeBasis(R, U, N).multiply(local));
+    p.y = cubeRestHeight(q);
+  }
+  return { p, q };
+}
+
 export interface Clearing {
   /** Throw the named dice so they land on the chosen results. A parked die is unparked first; a die off the table comes onto it. */
   roll(chosen: Chosen): Promise<Landing>;
@@ -1064,6 +1137,13 @@ export interface Clearing {
   park(which: Which[], ms: number): Promise<void>;
   /** Bring parked dice (all, unless named) back down onto the Clearing, clear of the dice there. */
   unpark(which: Which[] | undefined, ms: number): Promise<void>;
+  /**
+   * Set the named dice out to be read (see readingSpots): each carried to its
+   * place in the row and turned so the face it shows looks at the camera, the
+   * tetrahedron still on its face, apex up. Every other die on the Clearing joins
+   * the row as it lies. `ms` 0 is at once. Resolves with what the named dice show.
+   */
+  arrange(chosen: Chosen, ms: number): Promise<Landing>;
   /** Where each die is. */
   readonly table: DiceTable;
   /** Draw the ring and the shadows for this paper. */
@@ -1500,6 +1580,32 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
         const moved = table.unpark(which ?? DICE);
         await carry(moved.map((w) => ({ w, to: backDown(w, moved) })), ms);
       });
+    },
+
+    async arrange(chosen, ms) {
+      const named = DICE.filter((w) => chosen[w] !== undefined);
+      await exclusive(async () => {
+        const row = table.onTable();
+        const spots = readingSpots(row);
+        const moves = row.map((w) => {
+          const at = spots[w]!;
+          const mesh = meshes[w];
+          let to: Pose;
+          if (w === 'tetra') to = { p: new THREE.Vector3(at.x, mesh.position.y, at.z), q: mesh.quaternion.clone() };
+          else if (named.includes(w)) to = cubeReadPose(w === 'cube' ? cubeLabels : solidLabels, chosen[w]!, at);
+          else to = { p: new THREE.Vector3(at.x, mesh.position.y, at.z), q: mesh.quaternion.clone() };
+          return { mesh, from: mesh.position.clone(), q0: mesh.quaternion.clone(), to };
+        });
+        await animate(ms, (k) => {
+          const e = ease(k);
+          for (const m of moves) {
+            m.mesh.position.lerpVectors(m.from, m.to.p, e);
+            m.mesh.position.y += 1.2 * Math.sin(Math.PI * e);
+            m.mesh.quaternion.copy(m.q0).slerp(m.to.q, e);
+          }
+        }, 'arrangement');
+      });
+      return read(chosen);
     },
 
     place(chosen) {

@@ -13,7 +13,7 @@
 // document.fonts, and destroy() takes it away again.
 
 import { CUBE, TETRA, SOLIDS, type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
-import { createClearing, faceStyle, solidWood, paperInk, type Chosen, type FaceStyle, type SolidWood, type Clearing, type Impact, type Landing, type Which } from './dice';
+import { createClearing, faceStyle, solidWood, landingStyle, paperInk, type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Clearing, type Impact, type Landing, type Which } from './dice';
 import jostUrl from './fonts/jost-variable-latin.woff2?url';
 
 // The sounds, one module each, inlined by the build (see src/sounds/ATTRIBUTION.md).
@@ -101,6 +101,14 @@ export interface DiceTrayOptions {
    * faces already tell the two dice apart. Only the wood changes.
    */
   solidWood?: SolidWood;
+  /**
+   * What happens when the thrown dice come to rest. Default: 'ripple', a ripple
+   * rings out from each die. 'arrange' (a trial, not ruled) rings none: the dice
+   * glide to a row across the middle of the Clearing to be read, the colour die
+   * on the left and the solid die on the right, each turned so the face it landed
+   * on looks at the viewer, its letter upright. The result is the same either way.
+   */
+  landing?: LandingStyle;
   /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
   onChosen?: (result: RollResult) => void;
 }
@@ -247,6 +255,22 @@ export function rippleColour(school: School | null, paper: Paper = 'light'): str
   return paper === 'dark' ? school.glow : school.core;
 }
 
+/**
+ * Where the landing ripples ring, and in what colour: one from each thrown die
+ * (the School in the orientation colours them all), or none when the dice are
+ * set out to be read instead.
+ */
+export function landingRipples(
+  landing: LandingStyle,
+  chosen: Chosen,
+  landed: Landing,
+  colour: string,
+): { at: { x: number; y: number }; colour: string }[] {
+  if (landing === 'arrange') return [];
+  const at = [chosen.cube !== undefined && landed.cubeAt, chosen.tetra !== undefined && landed.tetraAt, chosen.solid !== undefined && landed.solidAt];
+  return at.filter((p): p is { x: number; y: number } => !!p).map((p) => ({ at: p, colour }));
+}
+
 /** How long a die takes to turn to a face set by hand. */
 const SHOW_MS = 450;
 
@@ -255,6 +279,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   let paper: Paper = opts.paper ?? 'light';
   const faces = faceStyle(opts.faces); // an unknown style is refused here, at mount
   const wood = solidWood(opts.solidWood); // and so is an unknown wood
+  const landing = landingStyle(opts.landing); // and an unknown landing
   let destroyed = false;
   let lastSound = 0;
   const playing = new Set<HTMLAudioElement>();
@@ -339,13 +364,16 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
         console.warn(`[ic-dice] the solid die shows ${landed.solid === undefined ? 'nothing' : SOLIDS[landed.solid].name} but ${SOLIDS[chosen.solid].name} was chosen; keeping ${SOLIDS[chosen.solid].name}`);
       }
 
-      // the landing: a ripple in the landed School's colour
-      if (chosen.cube !== undefined) {
-        school = nextSchool(school, chosen.cube);
-        if (landed.cubeAt) ripple(landed.cubeAt, rippleColour(school, paper));
+      if (chosen.cube !== undefined) school = nextSchool(school, chosen.cube);
+      if (landing === 'arrange') {
+        // set out to be read: the same faces, now looking at the viewer; read again, and the record still wins
+        const shown = await clearing.arrange(chosen, isReduced() ? 0 : SHOW_MS);
+        for (const w of ['cube', 'tetra', 'solid'] as const) {
+          if (chosen[w] !== undefined && shown[w] !== chosen[w]) console.warn(`[ic-dice] set out to be read, the ${w} shows ${shown[w]} but ${chosen[w]} was chosen; keeping ${chosen[w]}`);
+        }
       }
-      if (chosen.tetra !== undefined && landed.tetraAt) ripple(landed.tetraAt, rippleColour(school, paper));
-      if (chosen.solid !== undefined && landed.solidAt) ripple(landed.solidAt, rippleColour(school, paper));
+      // the landing: a ripple in the landed School's colour, unless the dice are set out to be read
+      for (const r of landingRipples(landing, chosen, landed, rippleColour(school, paper))) ripple(r.at, r.colour);
       return result;
     },
 

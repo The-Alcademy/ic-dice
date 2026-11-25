@@ -62,6 +62,40 @@ export declare function cubeLabelling(up: number, chosen: number): number[];
 export declare function solidLabelling(up: number, chosen: number): number[];
 /** A labelling of the tetrahedron's vertices that puts sub-stance `chosen` on vertex `up`: a half-turn about an edge axis, so an even permutation — a rotation, not a mirror image. */
 export declare function tetraLabelling(up: number, chosen: number): number[];
+/** How long a throw tumbles: 'normal', or 'long' (a trial, Matthew, 25 Nov 2026; not ruled), for the Platonid alone. */
+export type Tumble = 'normal' | 'long';
+/** A tumble; left out, it is 'normal'. Anything else is refused clearly. */
+export declare function tumbleStyle(tumble: unknown): Tumble;
+/**
+ * A throw's launch and settling. 'normal' is the throw as it has always been.
+ * 'long' launches harder and spins faster, with less angular damping, and
+ * leaves a slowing die alone for longer before the settling damping takes it,
+ * so it tumbles for about twice as long and still comes to rest squarely.
+ */
+export declare const TUMBLES: Record<Tumble, {
+    /** Launch speed: the least, and the most added at random. */
+    speed: readonly [number, number];
+    /** Launch spin about each axis, either way. */
+    spin: number;
+    damping: {
+        linear: number;
+        angular: number;
+    };
+    /** Before this, a die close to rest is not yet damped hard: it may keep rolling. */
+    nearAfter: number;
+    settleBy: number;
+    maxSeconds: number;
+    /** The dish: its pull towards the die's spot (per unit of distance, while it is low and moving), and its drag on its speed across the Clearing, so it does not overshoot. */
+    pull: number;
+    drag: number;
+    /** How a die bounces off the Clearing. */
+    bounce: number;
+    /** The height it leaves the hand at, and its speed upwards then (negative: thrown down). */
+    height: number;
+    rise: number;
+    /** How far in from the rim it leaves the hand. */
+    inset: number;
+}>;
 /** The inner circle drawn on the Clearing. */
 export declare const INNER_RADIUS: number;
 /** Every die rests with its centre this close to the middle. */
@@ -99,7 +133,7 @@ export type Which = 'cube' | 'tetra' | 'solid' | 'platonid';
  * them out: the colour die, the tetrahedron, the solid die, the Platonid.
  */
 export declare const DICE: readonly Which[];
-export declare function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode): Simulation;
+export declare function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode, tumble?: Tumble): Simulation;
 /**
  * A throw worth showing: every thrown die still and squarely on a face, every
  * die resting near the middle, and the two apart, neither touching nor leaning
@@ -109,7 +143,7 @@ export declare function restsWell(sim: Simulation, thrown: Which[]): boolean;
 /** How many unseen throws to try before giving up. */
 export declare const TRIES = 40;
 /** Throw unseen until one rests well (see restsWell), or null after TRIES. */
-export declare function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode): Simulation | null;
+export declare function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode, tumble?: Tumble): Simulation | null;
 /**
  * The orientation that brings the cube face carrying School `chosen` up, by the
  * smallest rotation from `q`. The labels stay where they are: the die is turned
@@ -247,8 +281,8 @@ export interface PlatonidSpec {
     faceImage?: FaceImage;
 }
 export interface Clearing {
-    /** Throw the named dice so they land on the chosen results. A parked die is unparked first; a die off the table comes onto it. */
-    roll(chosen: Chosen): Promise<Landing>;
+    /** Throw the named dice so they land on the chosen results, tumbling as `tumble` says (the Platonid's throw only). A parked die is unparked first; a die off the table comes onto it. */
+    roll(chosen: Chosen, tumble?: Tumble): Promise<Landing>;
     /** Put the dice at rest on the chosen results, with no throw (reduced motion). */
     place(chosen: Chosen): Landing;
     /**

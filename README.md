@@ -261,6 +261,16 @@ const { platonid } = await tray.roll({ platonid: 'random' }); // 1 to 12, thrown
   rested on shows.
 - A later roll or `unset()` of the colour or solid die takes the Platonid off
   the table.
+- `roll({ platonid, tumble: 'long' })` (a trial, 25 Nov 2026, not ruled)
+  throws the Platonid so it rolls for longer, about 1.5 times as long. It is
+  tossed up from further in, spins harder, has less angular damping, bounces
+  more, and is left to roll for longer before it is settled. Median times, in
+  unseen throws among the dice in the reading row: tetrahedron 1.8 s (1.3 s
+  normally), hexahedron 2.7 s (1.9 s), octahedron 3.4 s (2.1 s), dodecahedron
+  3.9 s (2.8 s), icosahedron 4.0 s (2.3 s). It lands on the chosen face the
+  same way, and reading and arranging are unchanged. `tumble: 'normal'` (the
+  default) is the throw as before. `'long'` is for the Platonid's throw only, and
+  any other value is refused.
 - `without: ['tetra']` leaves the tetrahedron out entirely: never drawn, parked
   or thrown. Naming it in `roll`, `show` or `unset` is refused with `This tray
   has no tetrahedron`.

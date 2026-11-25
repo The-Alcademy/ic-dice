@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { type FaceImage, type PlatonidCode } from './platonid';
 import { type Paper, type School, type SubStance } from './faces';
 type V3 = [number, number, number];
 export declare const CUBE_HALF = 0.74;
@@ -89,11 +90,16 @@ export interface Simulation {
     touching: boolean;
     /** The dice on the Clearing during the throw: those thrown, and those lying there. */
     present: Which[];
+    /** The Platonid's solid, when one was on the Clearing. */
+    platonid?: PlatonidCode;
 }
-export type Which = 'cube' | 'tetra' | 'solid';
-/** The three dice, in the order a simulation records them. */
+export type Which = 'cube' | 'tetra' | 'solid' | 'platonid';
+/**
+ * The dice, in the order a simulation records them and the reading row sets
+ * them out: the colour die, the tetrahedron, the solid die, the Platonid.
+ */
 export declare const DICE: readonly Which[];
-export declare function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation;
+export declare function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode): Simulation;
 /**
  * A throw worth showing: every thrown die still and squarely on a face, every
  * die resting near the middle, and the two apart, neither touching nor leaning
@@ -103,7 +109,7 @@ export declare function restsWell(sim: Simulation, thrown: Which[]): boolean;
 /** How many unseen throws to try before giving up. */
 export declare const TRIES = 40;
 /** Throw unseen until one rests well (see restsWell), or null after TRIES. */
-export declare function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation | null;
+export declare function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode): Simulation | null;
 /**
  * The orientation that brings the cube face carrying School `chosen` up, by the
  * smallest rotation from `q`. The labels stay where they are: the die is turned
@@ -146,8 +152,13 @@ export type Place = 'off' | 'table' | 'parked';
  */
 export declare class DiceTable {
     readonly place: Record<Which, Place>;
+    /** Dice this tray has none of (without: ['tetra']): never on the table. */
+    readonly without: readonly Which[];
+    constructor(without?: readonly Which[]);
     /** The dice lying on the Clearing: the ones a throw lands among. */
     onTable(): Which[];
+    /** Take the named dice off the table (the Platonid, once its Hall is done with); returns those that go. */
+    remove(which: readonly Which[]): Which[];
     /** Park the named dice that are on the Clearing; returns those that move. A die off the table stays off. */
     park(which: readonly Which[]): Which[];
     /** Bring parked dice back onto the Clearing (all of them, unless named); returns those that move. */
@@ -187,6 +198,12 @@ export interface Landing {
         x: number;
         y: number;
     };
+    /** The Platonid's landed face, an index (face n is n - 1), and where it lies. */
+    platonid?: number;
+    platonidAt?: {
+        x: number;
+        y: number;
+    };
 }
 /** Which dice, and onto which result (an index into CUBE / TETRA / SOLIDS). */
 export type Chosen = Partial<Record<Which, number>>;
@@ -219,6 +236,16 @@ export declare function cubeRestHeight(q: THREE.Quaternion): number;
  * lowered until its lowest corner touches the floor.
  */
 export declare function cubeReadPose(labels: number[], chosen: number, at: THREE.Vector3): Pose;
+/** A Platonid's reading pose at `at`: face `chosen` (an index) looking at the camera, its picture upright, the lowest corner on the floor. */
+export declare function platonidReadPose(code: PlatonidCode, chosen: number, at: THREE.Vector3): Pose;
+/** The faces of a Platonid in its Skhool's colour: core, with its numbers (or the host's pictures) in ink or white, whichever stands out. */
+export interface PlatonidSpec {
+    solid: PlatonidCode;
+    /** The Skhool's colour, and the colour its numbers are drawn in on it. */
+    colour: string;
+    on: string;
+    faceImage?: FaceImage;
+}
 export interface Clearing {
     /** Throw the named dice so they land on the chosen results. A parked die is unparked first; a die off the table comes onto it. */
     roll(chosen: Chosen): Promise<Landing>;
@@ -250,6 +277,13 @@ export interface Clearing {
      * the row as it lies. `ms` 0 is at once. Resolves with what the named dice show.
      */
     arrange(chosen: Chosen, ms: number): Promise<Landing>;
+    /**
+     * Bring a Platonid onto the Clearing (replacing any there), clear of the
+     * dice lying there, holding still on a corner so no face has landed. `ms` 0
+     * is at once. A later roll of the colour or solid die, or unset() of either,
+     * takes it off again.
+     */
+    placePlatonid(spec: PlatonidSpec, ms: number): Promise<void>;
     /** Where each die is. */
     readonly table: DiceTable;
     /** Draw the ring and the shadows for this paper. */
@@ -271,6 +305,8 @@ export interface ClearingOptions {
     faces?: FaceStyle;
     /** The solid die's wood. Default 'stained'; 'plain' is the cube's own light wood. */
     solidWood?: SolidWood;
+    /** Dice this tray has none of: ['tetra'] leaves the tetrahedron out entirely. */
+    without?: readonly Which[];
 }
 /** The current framing: the fraction of a square element the rim spans at the tray's usual field of view (about 0.99). */
 export declare const DEFAULT_CLEARING_SIZE: number;

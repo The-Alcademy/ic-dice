@@ -116,7 +116,7 @@ describe('the tray refuses an unknown solid code, before it waits for anything',
 describe('the table: where each die is', () => {
   it('begins with the first two on the Clearing and the solid die off the table', () => {
     const t = new DiceTable();
-    expect(t.place).toEqual({ cube: 'table', tetra: 'table', solid: 'off' });
+    expect(t.place).toEqual({ cube: 'table', tetra: 'table', solid: 'off', platonid: 'off' });
     expect(t.onTable()).toEqual(['cube', 'tetra']);
   });
 
@@ -135,7 +135,7 @@ describe('the table: where each die is', () => {
     const thrown = DICE.filter((w) => chooseRoll({ skhool: 'random' }).chosen[w] !== undefined);
     expect(thrown).toEqual(['cube']);
     expect(t.before(thrown)).toEqual({ unparked: ['cube'], appeared: [] });
-    expect(t.place).toEqual({ cube: 'table', tetra: 'parked', solid: 'off' });
+    expect(t.place).toEqual({ cube: 'table', tetra: 'parked', solid: 'off', platonid: 'off' });
   });
 
   it('a die off the table cannot be parked; unpark brings back only parked dice', () => {
@@ -174,9 +174,9 @@ describe('three dice on the Clearing', () => {
     for (const o of [resting.cube.p, resting.tetra.p]) expect(Math.hypot(s.x - o.x, s.z - o.z)).toBeGreaterThanOrEqual(REST_APART);
   });
 
-  it('records the three dice in order, the absent ones unmoved', () => {
+  it('records every die in order (now four, with the Platonid), the absent ones unmoved', () => {
     const sim = simulate(['solid'], {});
-    expect(sim.frames).toHaveLength(3);
-    expect(sim.final).toHaveLength(3);
+    expect(sim.frames).toHaveLength(4);
+    expect(sim.final).toHaveLength(4);
   });
 });

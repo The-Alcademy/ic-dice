@@ -12,8 +12,9 @@
 // copies no files. The one thing it adds outside `el` is that font, to
 // document.fonts, and destroy() takes it away again.
 
-import { CUBE, TETRA, SOLIDS, type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
-import { createClearing, faceStyle, solidWood, landingStyle, paperInk, type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Clearing, type Impact, type Landing, type Which } from './dice';
+import { CUBE, TETRA, SOLIDS, schoolByLetter, type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
+import { PLATONID_CODES, platonidModel, type FaceImage, type PlatonidCode } from './platonid';
+import { createClearing, faceStyle, solidWood, landingStyle, discLetterColour, paperInk, type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Clearing, type Impact, type Landing, type Which } from './dice';
 import jostUrl from './fonts/jost-variable-latin.woff2?url';
 
 // The sounds, one module each, inlined by the build (see src/sounds/ATTRIBUTION.md).
@@ -26,7 +27,7 @@ const byNumber = (files: Record<string, string>) =>
     .map(([, url]) => url);
 const SOUNDS = { clack: byNumber(clacks), tray: byNumber(trays), land: byNumber(knocks) };
 
-export type { SkhoolLetter, SolidCode, SubStance };
+export type { SkhoolLetter, SolidCode, SubStance, PlatonidCode, FaceImage };
 
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
@@ -34,6 +35,8 @@ export interface RollPick {
   subStance?: SubStance | 'random';
   /** The solid die: the Hall's solid, or the Sphere for the Clearing. */
   solid?: SolidCode | 'random';
+  /** The Platonid on the Clearing (see place()): a face, 1 to n. It is thrown alone. */
+  platonid?: number | 'random';
 }
 
 /** What was thrown: chosen before the throw, and shown by the dice after it. */
@@ -41,6 +44,20 @@ export interface RollResult {
   skhool?: SkhoolLetter;
   subStance?: SubStance;
   solid?: SolidCode;
+  /** The Platonid's face, 1 to n, numbered as ic-canon numbers it. */
+  platonid?: number;
+}
+
+/** A Platonid to bring onto the Clearing. */
+export interface PlacePick {
+  platonid: {
+    /** Its solid: T H O D I. */
+    solid: PlatonidCode;
+    /** Its Skhool, by the letter a roll's result gives (the Faculty's: REBIS is R): the die takes that Skhool's colour. */
+    skhool: SkhoolLetter;
+    /** Draws face n (1 to n) over its picture box; without it each face shows its number. */
+    faceImage?: FaceImage;
+  };
 }
 
 /** Which dice to turn, and to which face. A face must be given: showing is not choosing. */
@@ -109,6 +126,8 @@ export interface DiceTrayOptions {
    * on looks at the viewer, its letter upright. The result is the same either way.
    */
   landing?: LandingStyle;
+  /** Dice this tray goes without: ['tetra'] leaves the tetrahedron out entirely, never drawn, parked or thrown. */
+  without?: readonly 'tetra'[];
   /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
   onChosen?: (result: RollResult) => void;
 }
@@ -140,6 +159,13 @@ export interface DiceTray {
   park(pick: ParkPick): Promise<void>;
   /** Bring every parked die back down onto the Clearing, clear of the dice there. */
   unpark(): Promise<void>;
+  /**
+   * Bring a Platonid onto the Clearing, clear of the dice lying there (a trial,
+   * not ruled): it settles (at once under reduced motion) and holds still on a
+   * corner, showing no face, until a roll({ platonid }) throws it. Resolves once
+   * it is down. A later roll or unset() of the colour or solid die takes it off.
+   */
+  place(pick: PlacePick): Promise<void>;
   setSound(on: boolean): void;
   /** Redraw the ring, shadows and later ripples for this paper, e.g. when the page's light/dark setting changes. */
   setPaper(paper: Paper): void;
@@ -158,8 +184,15 @@ function solidIndex(code: unknown): number {
  * A roll's result, chosen before a die moves (random ones from the CSPRNG), and
  * which face of which die carries it. Throws on a face that is not on its die.
  */
-export function chooseRoll(pick: RollPick): { chosen: Chosen; result: RollResult } {
+export function chooseRoll(pick: RollPick, platonidFaces?: number): { chosen: Chosen; result: RollResult } {
   const chosen: Chosen = {};
+  if (pick.platonid !== undefined) {
+    if (!platonidFaces) throw new Error('There is no Platonid on the Clearing: place one first');
+    if (pick.skhool !== undefined || pick.subStance !== undefined || pick.solid !== undefined) throw new Error('The Platonid is thrown alone');
+    const n = pick.platonid;
+    if (n !== 'random' && !(Number.isInteger(n) && n >= 1 && n <= platonidFaces)) throw new Error(`No face ${JSON.stringify(n)} on the Platonid: it has faces 1 to ${platonidFaces}`);
+    chosen.platonid = n === 'random' ? chooseIndex(platonidFaces) : n - 1;
+  }
   if (pick.skhool !== undefined) {
     chosen.cube = pick.skhool === 'random' ? chooseIndex(CUBE.length) : CUBE.findIndex((s) => s.facultyLetter === pick.skhool);
     if (chosen.cube < 0) throw new Error(`No School ${String(pick.skhool)} on the cube`);
@@ -201,12 +234,27 @@ export function chooseUnset(pick: UnsetPick): Partial<Record<Which, boolean>> {
 }
 
 /** What the dice show, as the tray reports it. */
-function resultOf(shown: { cube?: number; tetra?: number; solid?: number }): RollResult {
+function resultOf(shown: { cube?: number; tetra?: number; solid?: number; platonid?: number }): RollResult {
   return {
     ...(shown.cube !== undefined ? { skhool: CUBE[shown.cube].facultyLetter } : {}),
     ...(shown.tetra !== undefined ? { subStance: TETRA[shown.tetra] } : {}),
     ...(shown.solid !== undefined ? { solid: SOLIDS[shown.solid].code } : {}),
+    ...(shown.platonid !== undefined ? { platonid: shown.platonid + 1 } : {}),
   };
+}
+
+/** A Platonid's spec for the Clearing: its solid checked, its Skhool's colour, and its numbers in ink or white, whichever stands out. */
+export function platonidSpec(pick: PlacePick['platonid']): { solid: PlatonidCode; colour: string; on: string; faceImage?: FaceImage } {
+  if (!pick || !PLATONID_CODES.includes(pick.solid)) throw new Error(`No Platonid ${JSON.stringify(pick?.solid)}: it is one of ${PLATONID_CODES.join(', ')}`);
+  const colour = schoolByLetter(pick.skhool).core;
+  return { solid: pick.solid, colour, on: discLetterColour(colour), ...(pick.faceImage ? { faceImage: pick.faceImage } : {}) };
+}
+
+/** A tray's dice to go without: only the tetrahedron can be left out. */
+export function withoutDice(without: unknown): ('tetra')[] {
+  if (without === undefined) return [];
+  if (!Array.isArray(without) || without.some((w) => w !== 'tetra')) throw new Error(`without takes ['tetra'], not ${JSON.stringify(without)}`);
+  return without.length ? ['tetra'] : [];
 }
 
 /** An index in [0, n), from the platform's CSPRNG, without modulo bias. */
@@ -267,7 +315,12 @@ export function landingRipples(
   colour: string,
 ): { at: { x: number; y: number }; colour: string }[] {
   if (landing === 'arrange') return [];
-  const at = [chosen.cube !== undefined && landed.cubeAt, chosen.tetra !== undefined && landed.tetraAt, chosen.solid !== undefined && landed.solidAt];
+  const at = [
+    chosen.cube !== undefined && landed.cubeAt,
+    chosen.tetra !== undefined && landed.tetraAt,
+    chosen.solid !== undefined && landed.solidAt,
+    chosen.platonid !== undefined && landed.platonidAt,
+  ];
   return at.filter((p): p is { x: number; y: number } => !!p).map((p) => ({ at: p, colour }));
 }
 
@@ -280,6 +333,12 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   const faces = faceStyle(opts.faces); // an unknown style is refused here, at mount
   const wood = solidWood(opts.solidWood); // and so is an unknown wood
   const landing = landingStyle(opts.landing); // and an unknown landing
+  const without = withoutDice(opts.without); // and a die it cannot go without
+  const noTetra = (named: boolean) => {
+    if (named && without.includes('tetra')) throw new Error('This tray has no tetrahedron');
+  };
+  /** The Platonid on the Clearing: its number of faces, or 0 for none. */
+  let platonidFaces = 0;
   let destroyed = false;
   let lastSound = 0;
   const playing = new Set<HTMLAudioElement>();
@@ -310,7 +369,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   // the cube's letters are drawn into canvases once, so Jost has to be here first
   const ready = acquireJost().then(() => {
     if (destroyed) return;
-    clearing = createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize, faces, solidWood: wood });
+    clearing = createClearing(box, paper, { ring: opts.ring, clearingSize: opts.clearingSize, faces, solidWood: wood, without });
     clearing.onImpact = (hit: Impact) => play(hit.kind === 'die' ? 'clack' : 'tray', hit.speed / 9);
     clearing.onLand = () => play('land', 0.8);
   });
@@ -339,7 +398,8 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
   const tray: DiceTray = {
     async roll(pick) {
       // the result first, so a host can log it before a die leaves the hand; a face not on its die is refused at once
-      const { chosen, result } = chooseRoll(pick);
+      noTetra(pick.subStance !== undefined);
+      const { chosen, result } = chooseRoll(pick, platonidFaces);
       await ready;
       if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
       opts.onChosen?.(result);
@@ -360,6 +420,11 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
       if (chosen.tetra !== undefined && landed.tetra !== chosen.tetra) {
         console.warn(`[ic-dice] the tetrahedron shows ${landed.tetra === undefined ? 'nothing' : TETRA[landed.tetra].room} but ${TETRA[chosen.tetra].room} was chosen; keeping ${TETRA[chosen.tetra].room}`);
       }
+      if (chosen.platonid !== undefined && landed.platonid !== chosen.platonid) {
+        console.warn(`[ic-dice] the Platonid shows ${landed.platonid === undefined ? 'nothing' : `face ${landed.platonid + 1}`} but face ${chosen.platonid + 1} was chosen; keeping face ${chosen.platonid + 1}`);
+      }
+      // a new Hall: the Platonid has left the table
+      if (chosen.cube !== undefined || chosen.solid !== undefined) platonidFaces = 0;
       if (chosen.solid !== undefined && landed.solid !== chosen.solid) {
         console.warn(`[ic-dice] the solid die shows ${landed.solid === undefined ? 'nothing' : SOLIDS[landed.solid].name} but ${SOLIDS[chosen.solid].name} was chosen; keeping ${SOLIDS[chosen.solid].name}`);
       }
@@ -368,7 +433,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
       if (landing === 'arrange') {
         // set out to be read: the same faces, now looking at the viewer; read again, and the record still wins
         const shown = await clearing.arrange(chosen, isReduced() ? 0 : SHOW_MS);
-        for (const w of ['cube', 'tetra', 'solid'] as const) {
+        for (const w of ['cube', 'tetra', 'solid', 'platonid'] as const) {
           if (chosen[w] !== undefined && shown[w] !== chosen[w]) console.warn(`[ic-dice] set out to be read, the ${w} shows ${shown[w]} but ${chosen[w]} was chosen; keeping ${chosen[w]}`);
         }
       }
@@ -389,7 +454,9 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
     },
 
     async unset(pick) {
+      noTetra(pick.subStance !== undefined);
       const which = chooseUnset(pick);
+      if (which.cube || which.solid) platonidFaces = 0;
       await ready;
       if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
       await clearing.unset(which, isReduced() ? 0 : SHOW_MS);
@@ -401,6 +468,14 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
       await ready;
       if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
       await clearing.park(which, isReduced() ? 0 : SHOW_MS);
+    },
+
+    async place(pick) {
+      const spec = platonidSpec(pick?.platonid);
+      await ready;
+      if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
+      await clearing.placePlatonid(spec, isReduced() ? 0 : SHOW_MS);
+      platonidFaces = platonidModel(spec.solid).faces.length;
     },
 
     async unpark() {

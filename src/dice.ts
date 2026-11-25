@@ -21,6 +21,10 @@
 
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
+import {
+  PLATONID_CODES, platonidFacing, platonidLanded, platonidModel, platonidRestHeight, platonidShape, platonidTurnTo, platonidTwist, platonidUnsetTo,
+  facePicturePoint, platonidFaceCanvas, type FaceImage, type PlatonidCode,
+} from './platonid';
 import { CUBE, TETRA, SOLIDS, INK, INK_ON_DARK, geocodeFor, type Paper, type School, type SubStance, type SubRoomIcon } from './faces';
 
 // ---------------------------------------------------------------- geometry --
@@ -621,12 +625,17 @@ export interface Simulation {
   touching: boolean;
   /** The dice on the Clearing during the throw: those thrown, and those lying there. */
   present: Which[];
+  /** The Platonid's solid, when one was on the Clearing. */
+  platonid?: PlatonidCode;
 }
 
-export type Which = 'cube' | 'tetra' | 'solid';
-/** The three dice, in the order a simulation records them. */
-export const DICE: readonly Which[] = ['cube', 'tetra', 'solid'];
-const isSix = (w: Which) => w !== 'tetra'; // the cube and the solid die: six faces, the same body
+export type Which = 'cube' | 'tetra' | 'solid' | 'platonid';
+/**
+ * The dice, in the order a simulation records them and the reading row sets
+ * them out: the colour die, the tetrahedron, the solid die, the Platonid.
+ */
+export const DICE: readonly Which[] = ['cube', 'tetra', 'solid', 'platonid'];
+const isSix = (w: Which) => w === 'cube' || w === 'solid'; // the cube and the solid die: six faces, the same body
 
 function cubeShape(): CANNON.ConvexPolyhedron {
   const { vertices, faces, index } = truncatedCube();
@@ -651,7 +660,7 @@ function unit(): number {
   return a[0] / 2 ** 32;
 }
 
-export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation {
+export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode): Simulation {
   const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -30, 0) });
   world.allowSleep = true;
   const dieMat = new CANNON.Material('die');
@@ -676,6 +685,8 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
     cube: new CANNON.Body({ mass: 1, material: dieMat, shape: cubeShape() }),
     tetra: new CANNON.Body({ mass: 0.7, material: dieMat, shape: tetraShape() }),
     solid: new CANNON.Body({ mass: 1, material: dieMat, shape: cubeShape() }),
+    // the Platonid, of its solid; with none on the Clearing this body is never added
+    platonid: new CANNON.Body({ mass: 1, material: dieMat, shape: platonidShape(platonid ?? 'H') }),
   };
   const impacts: Impact[] = [];
   let step = 0;
@@ -820,7 +831,7 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>)
   );
   // a die leaning on the other touches it until the last one sleeps; sleeping dice make no contacts, so look back
   const touching = lastTouch >= 0 && step - lastTouch <= TOUCH_LOOKBACK / STEP;
-  return { frames: record.map((r) => Float32Array.from(r)), impacts: merged, duration: ends, final, settled, touching, present };
+  return { frames: record.map((r) => Float32Array.from(r)), impacts: merged, duration: ends, final, settled, touching, present, platonid };
 }
 
 /**
@@ -832,23 +843,31 @@ export function restsWell(sim: Simulation, thrown: Which[]): boolean {
   const at = (w: Which) => sim.final[DICE.indexOf(w)];
   const out = (p: THREE.Vector3) => Math.hypot(p.x, p.z);
   const within = sim.present.length >= 3 ? REST_WITHIN_THREE : REST_WITHIN;
-  const pairs = sim.present.flatMap((a, i) => sim.present.slice(i + 1).map((b) => [a, b] as const));
+  // only pairs with a thrown die in them: dice lying there do not move, and may lie closer (the reading row is 2.8 apart)
+  const pairs = sim.present.flatMap((a, i) => sim.present.slice(i + 1).map((b) => [a, b] as const)).filter(([a, b]) => thrown.includes(a) || thrown.includes(b));
   return (
     sim.settled &&
     !sim.touching &&
-    thrown.every((w) => (isSix(w) ? cubeUp(at(w).q).flat : tetraUp(at(w).q).flat) > 0.97) &&
+    thrown.every((w) => flatness(w, at(w).q, sim.platonid) > 0.97) &&
     sim.present.every((w) => out(at(w).p) <= within) &&
     pairs.every(([a, b]) => Math.hypot(at(a).p.x - at(b).p.x, at(a).p.z - at(b).p.z) >= REST_APART)
   );
+}
+
+/** How squarely a die rests on its landed face (1 = flat). */
+function flatness(w: Which, q: THREE.Quaternion, platonid?: PlatonidCode): number {
+  if (isSix(w)) return cubeUp(q).flat;
+  if (w === 'tetra') return tetraUp(q).flat;
+  return platonidLanded(platonid!, q).flat;
 }
 
 /** How many unseen throws to try before giving up. */
 export const TRIES = 40;
 
 /** Throw unseen until one rests well (see restsWell), or null after TRIES. */
-export function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>): Simulation | null {
+export function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode): Simulation | null {
   for (let attempt = 0; attempt < TRIES; attempt++) {
-    const s = simulate(thrown, resting);
+    const s = simulate(thrown, resting, platonid);
     if (restsWell(s, thrown)) return s;
   }
   return null;
@@ -967,11 +986,25 @@ export type Place = 'off' | 'table' | 'parked';
  * the tetrahedron begin on the Clearing; the solid die begins off the table.
  */
 export class DiceTable {
-  readonly place: Record<Which, Place> = { cube: 'table', tetra: 'table', solid: 'off' };
+  readonly place: Record<Which, Place> = { cube: 'table', tetra: 'table', solid: 'off', platonid: 'off' };
+  /** Dice this tray has none of (without: ['tetra']): never on the table. */
+  readonly without: readonly Which[];
+
+  constructor(without: readonly Which[] = []) {
+    this.without = without;
+    for (const w of without) this.place[w] = 'off';
+  }
 
   /** The dice lying on the Clearing: the ones a throw lands among. */
   onTable(): Which[] {
     return DICE.filter((w) => this.place[w] === 'table');
+  }
+
+  /** Take the named dice off the table (the Platonid, once its Hall is done with); returns those that go. */
+  remove(which: readonly Which[]): Which[] {
+    const gone = which.filter((w) => this.place[w] !== 'off');
+    for (const w of gone) this.place[w] = 'off';
+    return gone;
   }
 
   /** Park the named dice that are on the Clearing; returns those that move. A die off the table stays off. */
@@ -993,6 +1026,8 @@ export class DiceTable {
    * first, and a die off the table comes onto it. Every named die is then on the table.
    */
   before(which: readonly Which[]): { unparked: Which[]; appeared: Which[] } {
+    const missing = which.find((w) => this.without.includes(w));
+    if (missing) throw new Error(`This tray has no ${missing === 'tetra' ? 'tetrahedron' : missing}`);
     const unparked = this.unpark(which);
     const appeared = which.filter((w) => this.place[w] === 'off');
     for (const w of appeared) this.place[w] = 'table';
@@ -1002,7 +1037,7 @@ export class DiceTable {
 
 /** The parked row: just above the Clearing's rim, as the page is seen, the dice side by side. */
 export const PARK_Z = -(CLEARING_RADIUS + 1.5);
-const PARK_X: Record<Which, number> = { cube: -1.3, tetra: 1.3, solid: 0 };
+const PARK_X: Record<Which, number> = { cube: -1.3, tetra: 1.3, solid: 0, platonid: 2.6 };
 
 /**
  * A place on the Clearing for a die: `preferred` if it is REST_APART from every
@@ -1035,6 +1070,9 @@ export interface Landing {
   cubeAt?: { x: number; y: number };
   tetraAt?: { x: number; y: number };
   solidAt?: { x: number; y: number };
+  /** The Platonid's landed face, an index (face n is n - 1), and where it lies. */
+  platonid?: number;
+  platonidAt?: { x: number; y: number };
 }
 
 /** Which dice, and onto which result (an index into CUBE / TETRA / SOLIDS). */
@@ -1074,8 +1112,10 @@ export const READ_GAP = 2.8;
  */
 export function readingSpots(which: readonly Which[]): Partial<Record<Which, THREE.Vector3>> {
   const row = DICE.filter((w) => which.includes(w));
+  // four in a row (the tetrahedron and a Platonid both on the Clearing) close up just enough to stay inside the rim
+  const gap = row.length > 1 ? Math.min(READ_GAP, (2 * (CLEARING_RADIUS - 1.25)) / (row.length - 1)) : READ_GAP;
   const out: Partial<Record<Which, THREE.Vector3>> = {};
-  row.forEach((w, i) => (out[w] = new THREE.Vector3((i - (row.length - 1) / 2) * READ_GAP, 0, READ_Z)));
+  row.forEach((w, i) => (out[w] = new THREE.Vector3((i - (row.length - 1) / 2) * gap, 0, READ_Z)));
   return out;
 }
 
@@ -1105,6 +1145,17 @@ export function cubeReadPose(labels: number[], chosen: number, at: THREE.Vector3
   const n = new THREE.Vector3(...spec.n);
   const u = new THREE.Vector3(...spec.up);
   const r = new THREE.Vector3().crossVectors(u, n); // the texture's right, as cubeMesh lays it out
+  return readPose(r, u, n, cubeRestHeight, at);
+}
+
+/** A Platonid's reading pose at `at`: face `chosen` (an index) looking at the camera, its picture upright, the lowest corner on the floor. */
+export function platonidReadPose(code: PlatonidCode, chosen: number, at: THREE.Vector3): Pose {
+  const f = platonidModel(code).faces[chosen];
+  return readPose(f.right, f.up, f.normal, (q) => platonidRestHeight(code, q), at);
+}
+
+/** Turn a die's face (its right, up and outward normal) to look at the camera, upright, at `at`, resting on the floor. */
+function readPose(r: THREE.Vector3, u: THREE.Vector3, n: THREE.Vector3, height: (q: THREE.Quaternion) => number, at: THREE.Vector3): Pose {
   const local = new THREE.Matrix4().makeBasis(r, u, n).transpose();
   // aimed from the die's centre, whose height depends on the tilt: settled in a few rounds
   const p = new THREE.Vector3(at.x, CUBE_HALF, at.z);
@@ -1114,9 +1165,18 @@ export function cubeReadPose(labels: number[], chosen: number, at: THREE.Vector3
     const U = screenUp(N);
     const R = new THREE.Vector3().crossVectors(U, N);
     q.setFromRotationMatrix(new THREE.Matrix4().makeBasis(R, U, N).multiply(local));
-    p.y = cubeRestHeight(q);
+    p.y = height(q);
   }
   return { p, q };
+}
+
+/** The faces of a Platonid in its Skhool's colour: core, with its numbers (or the host's pictures) in ink or white, whichever stands out. */
+export interface PlatonidSpec {
+  solid: PlatonidCode;
+  /** The Skhool's colour, and the colour its numbers are drawn in on it. */
+  colour: string;
+  on: string;
+  faceImage?: FaceImage;
 }
 
 export interface Clearing {
@@ -1150,6 +1210,13 @@ export interface Clearing {
    * the row as it lies. `ms` 0 is at once. Resolves with what the named dice show.
    */
   arrange(chosen: Chosen, ms: number): Promise<Landing>;
+  /**
+   * Bring a Platonid onto the Clearing (replacing any there), clear of the
+   * dice lying there, holding still on a corner so no face has landed. `ms` 0
+   * is at once. A later roll of the colour or solid die, or unset() of either,
+   * takes it off again.
+   */
+  placePlatonid(spec: PlatonidSpec, ms: number): Promise<void>;
   /** Where each die is. */
   readonly table: DiceTable;
   /** Draw the ring and the shadows for this paper. */
@@ -1175,6 +1242,8 @@ export interface ClearingOptions {
   faces?: FaceStyle;
   /** The solid die's wood. Default 'stained'; 'plain' is the cube's own light wood. */
   solidWood?: SolidWood;
+  /** Dice this tray has none of: ['tetra'] leaves the tetrahedron out entirely. */
+  without?: readonly Which[];
 }
 
 /** Where the camera looks at the Clearing from, and at: fixed; its field of view sets the size. */
@@ -1286,8 +1355,16 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
   const tetra = tetraMesh();
   const wood = solidWood(options.solidWood);
   const solid = cubeMesh(wood === 'stained');
-  scene.add(cube.mesh, tetra.mesh, solid.mesh);
-  const meshes: Record<Which, THREE.Mesh> = { cube: cube.mesh, tetra: tetra.mesh, solid: solid.mesh };
+  const without = options.without ?? [];
+  scene.add(cube.mesh, solid.mesh);
+  if (!without.includes('tetra')) scene.add(tetra.mesh);
+  // the Platonid: none until a host places one; its mesh is made then, for its solid
+  const placeholder = new THREE.Mesh();
+  placeholder.visible = false;
+  const meshes: Record<Which, THREE.Mesh> = { cube: cube.mesh, tetra: tetra.mesh, solid: solid.mesh, platonid: placeholder };
+  let platonid: PlatonidSpec | null = null;
+  /** Each Platonid face's own texture, so a host's picture can arrive later. */
+  let platonidTextures: THREE.CanvasTexture[] = [];
 
   const { cube: letterTextures, solid: solidTextures } = faceTextures(faceStyle(options.faces), wood);
   const tetraTextures = new Map<string, THREE.CanvasTexture>();
@@ -1316,7 +1393,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
   };
 
   // where each die is; the solid die begins off the table, not drawn
-  const table = new DiceTable();
+  const table = new DiceTable(without);
   const showOnTable = () => DICE.forEach((w) => (meshes[w].visible = table.place[w] !== 'off'));
 
   // at rest before the first throw: side by side in the middle of the Clearing
@@ -1370,7 +1447,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
   };
 
   /** Read the named dice as they are drawn: the physical up faces, under their current labels. */
-  const read = (which: Chosen): Landing => {
+  const read = (which: Chosen, facing = false): Landing => {
     const out: Landing = {};
     if (which.cube !== undefined) {
       out.cube = cubeLabels[cubeUp(meshes.cube.quaternion).face];
@@ -1383,6 +1460,12 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
     if (which.solid !== undefined) {
       out.solid = solidLabels[cubeUp(meshes.solid.quaternion).face];
       out.solidAt = toScreen(meshes.solid.position);
+    }
+    if (which.platonid !== undefined && platonid) {
+      const q = meshes.platonid.quaternion;
+      // set out to be read, its face looks at the camera; else its landed face counts
+      out.platonid = facing ? platonidFacing(platonid.solid, q, new THREE.Vector3().subVectors(CAMERA_AT, meshes.platonid.position).normalize()) : platonidLanded(platonid.solid, q).face;
+      out.platonidAt = toScreen(meshes.platonid.position);
     }
     return out;
   };
@@ -1416,7 +1499,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
     const moves = targets
       .map((t) => ({ ...t, mesh: meshes[t.w], q0: meshes[t.w].quaternion.clone(), y0: meshes[t.w].position.y }))
       .filter((m) => m.q0.angleTo(m.q1) > 1e-3 || Math.abs(m.y0 - m.y1) > 1e-4);
-    const LIFT: Record<Which, number> = { cube: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, solid: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, tetra: 0.2 };
+    const LIFT: Record<Which, number> = { cube: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, solid: CUBE_HALF * (Math.SQRT2 - 1) + 0.05, tetra: 0.2, platonid: 0.3 };
     await animate(moves.length ? ms : 0, (k) => {
       const e = ease(k);
       for (const m of moves) {
@@ -1464,8 +1547,83 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
     }
   };
 
+  /** Make the Platonid's mesh: its solid's faces, each with its own texture (its number, or the host's picture once it arrives). */
+  const platonidMesh = (spec: PlatonidSpec): THREE.Mesh => {
+    const model = platonidModel(spec.solid);
+    const positions: number[] = [];
+    const uvs: number[] = [];
+    const geo = new THREE.BufferGeometry();
+    model.faces.forEach((face, i) => {
+      const tris = model.triangles.filter((t) => t.face === i);
+      for (const t of tris) for (const p of [t.a, t.b, t.c]) {
+        positions.push(p.x, p.y, p.z);
+        const [x, y] = facePicturePoint(face, p);
+        uvs.push(x / 160, 1 - y / 160);
+      }
+      geo.addGroup(positions.length / 3 - tris.length * 3, tris.length * 3, i);
+    });
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.computeVertexNormals();
+    platonidTextures = model.faces.map((face) => texture(platonidFaceCanvas(face, spec.colour, spec.on)));
+    if (spec.faceImage) {
+      model.faces.forEach((face, i) => {
+        Promise.resolve()
+          .then(() => spec.faceImage!(face.number))
+          .then((img) => {
+            const canvas = platonidTextures[i]?.image as HTMLCanvasElement | undefined;
+            if (destroyed || !canvas || platonid !== spec) return;
+            const g = canvas.getContext('2d')!;
+            g.fillStyle = spec.colour;
+            g.fillRect(0, 0, canvas.width, canvas.height);
+            g.drawImage(img, 0, 0, canvas.width, canvas.height);
+            platonidTextures[i].needsUpdate = true;
+          })
+          .catch(() => {}); // the number stays
+      });
+    }
+    const mats = platonidTextures.map((map) => new THREE.MeshStandardMaterial({ map, roughness: 0.6 }));
+    const mesh = new THREE.Mesh(geo, mats);
+    mesh.castShadow = true;
+    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 10), ink));
+    return mesh;
+  };
+  /** Take the Platonid off the table, and free what it drew with. */
+  const dismissPlatonid = () => {
+    if (!platonid) return;
+    table.remove(['platonid']);
+    const old = meshes.platonid;
+    scene.remove(old);
+    old.geometry.dispose();
+    for (const m of ([] as THREE.Material[]).concat(old.material)) m.dispose();
+    platonidTextures.forEach((t) => t.dispose());
+    platonidTextures = [];
+    meshes.platonid = placeholder;
+    platonid = null;
+  };
+
   const clearing: Clearing = {
     table,
+
+    async placePlatonid(spec, ms) {
+      if (!PLATONID_CODES.includes(spec.solid)) throw new Error(`No Platonid "${String(spec.solid)}": it is one of ${PLATONID_CODES.join(', ')}`);
+      await exclusive(async () => {
+        dismissPlatonid();
+        platonid = spec;
+        const mesh = platonidMesh(spec);
+        meshes.platonid = mesh;
+        scene.add(mesh);
+        table.before(['platonid']);
+        const spot = freeSpot(null, others(['platonid']));
+        const q = platonidUnsetTo(spec.solid, new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, unit() * 6.3, 0.2)));
+        const y = platonidRestHeight(spec.solid, q);
+        mesh.quaternion.copy(q);
+        mesh.position.set(spot.x, y + 3, spot.z);
+        showOnTable();
+        // down onto the Clearing from just above it
+        await animate(ms, (k) => mesh.position.setY(y + 3 * (1 - ease(k)) ** 2), 'placing');
+      });
+    },
     setPaper(next) {
       // rings turned off stay off: there are none to recolour
       for (const m of ringMaterials) m.color.set(paperInk(next));
@@ -1479,13 +1637,24 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
       if (playing) throw new Error('The dice are already rolling');
       playing = true;
       const thrown = DICE.filter((w) => chosen[w] !== undefined);
+      if (thrown.includes('platonid') && !platonid) {
+        playing = false;
+        throw new Error('There is no Platonid on the Clearing: place one first');
+      }
+      // a throw of the colour or solid die is a new Hall: its Platonid leaves the table
+      if (thrown.includes('cube') || thrown.includes('solid')) dismissPlatonid();
       // a parked die is unparked first, a die off the table comes onto it: thrown in from the rim, both
-      table.before(thrown);
+      try {
+        table.before(thrown);
+      } catch (e) {
+        playing = false;
+        throw e;
+      }
       const resting: Partial<Record<Which, Pose>> = {};
       for (const w of table.onTable()) if (!thrown.includes(w)) resting[w] = { p: meshes[w].position.clone(), q: meshes[w].quaternion.clone() };
 
       // 2. simulate unseen until the dice rest squarely, near the middle and apart
-      const sim = throwUnseen(thrown, resting);
+      const sim = throwUnseen(thrown, resting, platonid?.solid);
       if (!sim) {
         playing = false;
         throw new Error(`No throw came to rest well in ${TRIES} tries`);
@@ -1497,6 +1666,10 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
       if (chosen.tetra !== undefined) tetraLabels = tetraLabelling(tetraUp(final('tetra').q).vertex, chosen.tetra);
       if (chosen.solid !== undefined) solidLabels = solidLabelling(cubeUp(final('solid').q).face, chosen.solid);
       applyLabels();
+      // the Platonid keeps canon's numbering: the whole throw is played back turned by one of its symmetries instead
+      const twist = new THREE.Quaternion();
+      if (chosen.platonid !== undefined) twist.copy(platonidTwist(platonid!.solid, platonidLanded(platonid!.solid, final('platonid').q).face, chosen.platonid));
+      const turned = (w: Which, q: THREE.Quaternion) => (w === 'platonid' ? q.multiply(twist) : q);
 
       // 4. play the recorded throw back, in real time, with its impacts
       const count = sim.frames[0].length / 7;
@@ -1512,7 +1685,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
         qa.set(fr[i * 7 + 3], fr[i * 7 + 4], fr[i * 7 + 5], fr[i * 7 + 6]);
         qb.set(fr[j * 7 + 3], fr[j * 7 + 4], fr[j * 7 + 5], fr[j * 7 + 6]);
         meshes[w].position.copy(pa);
-        meshes[w].quaternion.copy(qa).slerp(qb, k);
+        turned(w, meshes[w].quaternion.copy(qa).slerp(qb, k));
       };
       thrown.forEach((w) => poseAt(w, 0));
       showOnTable();
@@ -1530,7 +1703,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
         requestAnimationFrame(tick);
       });
       if (destroyed) throw new Error('The tray was destroyed during the throw');
-      thrown.forEach((w) => setPose(w, final(w)));
+      thrown.forEach((w) => setPose(w, { p: final(w).p, q: turned(w, final(w).q.clone()) }));
       render();
       playing = false;
       clearing.onLand();
@@ -1562,6 +1735,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
     async unset(which, ms) {
       const named = DICE.filter((w) => which[w]);
       await exclusive(async () => {
+        if (named.includes('cube') || named.includes('solid')) dismissPlatonid();
         await bring(named, ms);
         await glide(
           named.map((w) => {
@@ -1598,6 +1772,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
           const mesh = meshes[w];
           let to: Pose;
           if (w === 'tetra') to = { p: new THREE.Vector3(at.x, mesh.position.y, at.z), q: mesh.quaternion.clone() };
+          else if (w === 'platonid') to = named.includes(w) ? platonidReadPose(platonid!.solid, chosen.platonid!, at) : { p: new THREE.Vector3(at.x, mesh.position.y, at.z), q: mesh.quaternion.clone() };
           else if (named.includes(w)) to = cubeReadPose(w === 'cube' ? cubeLabels : solidLabels, chosen[w]!, at);
           else to = { p: new THREE.Vector3(at.x, mesh.position.y, at.z), q: mesh.quaternion.clone() };
           return { mesh, from: mesh.position.clone(), q0: mesh.quaternion.clone(), to };
@@ -1611,7 +1786,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
           }
         }, 'arrangement');
       });
-      return read(chosen);
+      return read(chosen, true);
     },
 
     place(chosen) {
@@ -1630,6 +1805,11 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
         const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(...TETRA_VERTS[chosen.tetra]).normalize(), new THREE.Vector3(0, 1, 0));
         const y = -Math.min(...TETRA_VERTS.map((v) => new THREE.Vector3(...v).applyQuaternion(q).y));
         setPose('tetra', { p: new THREE.Vector3(rest.tetra.p.x, y, rest.tetra.p.z), q });
+      }
+      if (chosen.platonid !== undefined && platonid) {
+        const q = platonidTurnTo(platonid.solid, meshes.platonid.quaternion, chosen.platonid);
+        const at = meshes.platonid.position;
+        setPose('platonid', { p: new THREE.Vector3(at.x, platonidRestHeight(platonid.solid, q), at.z), q });
       }
       if (chosen.solid !== undefined) {
         solidLabels = [...SOLID_BASE];

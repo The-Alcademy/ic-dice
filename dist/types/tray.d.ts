@@ -1,18 +1,34 @@
 import { type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
+import { type FaceImage, type PlatonidCode } from './platonid';
 import { type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Landing, type Which } from './dice';
-export type { SkhoolLetter, SolidCode, SubStance };
+export type { SkhoolLetter, SolidCode, SubStance, PlatonidCode, FaceImage };
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
     skhool?: SkhoolLetter | 'random';
     subStance?: SubStance | 'random';
     /** The solid die: the Hall's solid, or the Sphere for the Clearing. */
     solid?: SolidCode | 'random';
+    /** The Platonid on the Clearing (see place()): a face, 1 to n. It is thrown alone. */
+    platonid?: number | 'random';
 }
 /** What was thrown: chosen before the throw, and shown by the dice after it. */
 export interface RollResult {
     skhool?: SkhoolLetter;
     subStance?: SubStance;
     solid?: SolidCode;
+    /** The Platonid's face, 1 to n, numbered as ic-canon numbers it. */
+    platonid?: number;
+}
+/** A Platonid to bring onto the Clearing. */
+export interface PlacePick {
+    platonid: {
+        /** Its solid: T H O D I. */
+        solid: PlatonidCode;
+        /** Its Skhool, by the letter a roll's result gives (the Faculty's: REBIS is R): the die takes that Skhool's colour. */
+        skhool: SkhoolLetter;
+        /** Draws face n (1 to n) over its picture box; without it each face shows its number. */
+        faceImage?: FaceImage;
+    };
 }
 /** Which dice to turn, and to which face. A face must be given: showing is not choosing. */
 export interface ShowPick {
@@ -77,6 +93,8 @@ export interface DiceTrayOptions {
      * on looks at the viewer, its letter upright. The result is the same either way.
      */
     landing?: LandingStyle;
+    /** Dice this tray goes without: ['tetra'] leaves the tetrahedron out entirely, never drawn, parked or thrown. */
+    without?: readonly 'tetra'[];
     /** Called with the result once it is chosen, before a die moves, so a host can log it first. */
     onChosen?: (result: RollResult) => void;
 }
@@ -107,6 +125,13 @@ export interface DiceTray {
     park(pick: ParkPick): Promise<void>;
     /** Bring every parked die back down onto the Clearing, clear of the dice there. */
     unpark(): Promise<void>;
+    /**
+     * Bring a Platonid onto the Clearing, clear of the dice lying there (a trial,
+     * not ruled): it settles (at once under reduced motion) and holds still on a
+     * corner, showing no face, until a roll({ platonid }) throws it. Resolves once
+     * it is down. A later roll or unset() of the colour or solid die takes it off.
+     */
+    place(pick: PlacePick): Promise<void>;
     setSound(on: boolean): void;
     /** Redraw the ring, shadows and later ripples for this paper, e.g. when the page's light/dark setting changes. */
     setPaper(paper: Paper): void;
@@ -117,7 +142,7 @@ export interface DiceTray {
  * A roll's result, chosen before a die moves (random ones from the CSPRNG), and
  * which face of which die carries it. Throws on a face that is not on its die.
  */
-export declare function chooseRoll(pick: RollPick): {
+export declare function chooseRoll(pick: RollPick, platonidFaces?: number): {
     chosen: Chosen;
     result: RollResult;
 };
@@ -125,6 +150,15 @@ export declare function chooseRoll(pick: RollPick): {
 export declare function chooseShow(pick: ShowPick): Chosen;
 /** Which dice an unset() undecides. Each is named with `true`; a face given instead is an error. */
 export declare function chooseUnset(pick: UnsetPick): Partial<Record<Which, boolean>>;
+/** A Platonid's spec for the Clearing: its solid checked, its Skhool's colour, and its numbers in ink or white, whichever stands out. */
+export declare function platonidSpec(pick: PlacePick['platonid']): {
+    solid: PlatonidCode;
+    colour: string;
+    on: string;
+    faceImage?: FaceImage;
+};
+/** A tray's dice to go without: only the tetrahedron can be left out. */
+export declare function withoutDice(without: unknown): ('tetra')[];
 /** An index in [0, n), from the platform's CSPRNG, without modulo bias. */
 export declare function chooseIndex(n: number): number;
 /**

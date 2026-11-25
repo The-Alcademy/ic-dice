@@ -222,6 +222,49 @@ await tray.unset({ skhool: true, solid: true }); // both dice on the Clearing, o
 await tray.roll({ skhool: 'random', solid: 'random' }); // then set out side by side, to be read
 ```
 
+### The Platonid, and a tray without the tetrahedron
+
+A trial of 25 Nov 2026, not ruled. A **Platonid** is a Hall's own solid as a
+die: any of the five (`T H O D I`), in its Skhool's colour, its faces numbered
+1 to n exactly as ic-canon numbers them (`generated/face_normals.json`, D-63,
+D-65, D-66, copied with its stamp into `src/face-normals.ts`). A host brings
+one onto the Clearing, where it holds still on a corner, and a later roll
+throws it alone onto a chosen face.
+
+```ts
+const tray = mountDiceTray(el, { faces: 'geocode', solidWood: 'plain', landing: 'arrange', without: ['tetra'] });
+await tray.unset({ skhool: true, solid: true });
+const { skhool, solid } = await tray.roll({ skhool: 'random', solid: 'random' });
+await tray.place({ platonid: { solid: 'D', skhool: skhool!, faceImage: (n) => myRoomGlyph(n) } }); // it waits there
+const { platonid } = await tray.roll({ platonid: 'random' }); // 1 to 12, thrown alone
+```
+
+- `place({ platonid: { solid, skhool, faceImage? } })`: `skhool` is the letter
+  a roll's result gives (the Faculty's: REBIS is `R`), and the die takes that
+  Skhool's `core` colour. `faceImage(n)` (an image, or a promise of one) is
+  drawn over face n's 160 × 160 picture box, laid out as ic-canon's facet tiles
+  (`GG.image(code, { frame: 'facet' })`). Without it, each face shows its
+  number, in ink or white, whichever stands out more.
+- `roll({ platonid: n | 'random' })` throws only the Platonid; the dice lying
+  there stay where they are. The result is `{ platonid: n }`. It cannot be
+  thrown with other dice, and there must be one on the Clearing.
+- A tetrahedron's landed face is the one it rests on. Every other solid's is the
+  face that is up.
+- The faces keep canon's numbering, so a Platonid is not relabelled the way the
+  cube is. Instead, its recorded throw is played back turned by one of the
+  solid's own symmetries, which carries the chosen face to where the landed face
+  lay. The solid fills exactly the same space after that turn, so the throw is
+  unchanged.
+- With `landing: 'arrange'`, the row runs colour die, solid die, Platonid, left
+  to right, so it reads as a Room's geocode (`PD`, then `R3`). The Platonid's
+  landed face looks at the viewer. A tetrahedron is turned over so the face it
+  rested on shows.
+- A later roll or `unset()` of the colour or solid die takes the Platonid off
+  the table.
+- `without: ['tetra']` leaves the tetrahedron out entirely: never drawn, parked
+  or thrown. Naming it in `roll`, `show` or `unset` is refused with `This tray
+  has no tetrahedron`.
+
 The package also exports the faces (`CUBE`, `TETRA`, `schoolByLetter`, the
 `SkhoolLetter` and `SubStance` types), the solids (`SOLIDS`, `solidByCode`,
 `geocodeFor`, the `Solid` and `SolidCode` types) and the Porter's lines

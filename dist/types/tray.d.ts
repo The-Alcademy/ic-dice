@@ -1,6 +1,6 @@
 import { type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
 import { type FaceImage, type PlatonidCode } from './platonid';
-import { type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Landing, type Which } from './dice';
+import { type Tumble, type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Landing, type Which } from './dice';
 export type { SkhoolLetter, SolidCode, SubStance, PlatonidCode, FaceImage };
 /** Which dice to throw, and onto what. Leave a die out and it is not thrown. */
 export interface RollPick {
@@ -10,6 +10,12 @@ export interface RollPick {
     solid?: SolidCode | 'random';
     /** The Platonid on the Clearing (see place()): a face, 1 to n. It is thrown alone. */
     platonid?: number | 'random';
+    /**
+     * How the Platonid tumbles: 'normal' (the default), or 'long' (a trial, not
+     * ruled), tossed higher and spinning harder so it rolls for about 1.5 times
+     * as long before it settles. For the Platonid's throw only.
+     */
+    tumble?: Tumble;
 }
 /** What was thrown: chosen before the throw, and shown by the dice after it. */
 export interface RollResult {
@@ -157,6 +163,8 @@ export declare function platonidSpec(pick: PlacePick['platonid']): {
     on: string;
     faceImage?: FaceImage;
 };
+/** A roll's tumble, checked: 'long' is for the Platonid's throw alone. */
+export declare function rollTumble(pick: RollPick): Tumble;
 /** A tray's dice to go without: only the tetrahedron can be left out. */
 export declare function withoutDice(without: unknown): ('tetra')[];
 /** An index in [0, n), from the platform's CSPRNG, without modulo bias. */

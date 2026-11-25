@@ -14,7 +14,7 @@
 
 import { CUBE, TETRA, SOLIDS, schoolByLetter, type Paper, type School, type SkhoolLetter, type SolidCode, type SubStance } from './faces';
 import { PLATONID_CODES, platonidModel, type FaceImage, type PlatonidCode } from './platonid';
-import { createClearing, faceStyle, solidWood, landingStyle, discLetterColour, paperInk, type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Clearing, type Impact, type Landing, type Which } from './dice';
+import { createClearing, faceStyle, solidWood, landingStyle, tumbleStyle, discLetterColour, paperInk, type Tumble, type Chosen, type FaceStyle, type SolidWood, type LandingStyle, type Clearing, type Impact, type Landing, type Which } from './dice';
 import jostUrl from './fonts/jost-variable-latin.woff2?url';
 
 // The sounds, one module each, inlined by the build (see src/sounds/ATTRIBUTION.md).
@@ -37,6 +37,12 @@ export interface RollPick {
   solid?: SolidCode | 'random';
   /** The Platonid on the Clearing (see place()): a face, 1 to n. It is thrown alone. */
   platonid?: number | 'random';
+  /**
+   * How the Platonid tumbles: 'normal' (the default), or 'long' (a trial, not
+   * ruled), tossed higher and spinning harder so it rolls for about 1.5 times
+   * as long before it settles. For the Platonid's throw only.
+   */
+  tumble?: Tumble;
 }
 
 /** What was thrown: chosen before the throw, and shown by the dice after it. */
@@ -250,6 +256,13 @@ export function platonidSpec(pick: PlacePick['platonid']): { solid: PlatonidCode
   return { solid: pick.solid, colour, on: discLetterColour(colour), ...(pick.faceImage ? { faceImage: pick.faceImage } : {}) };
 }
 
+/** A roll's tumble, checked: 'long' is for the Platonid's throw alone. */
+export function rollTumble(pick: RollPick): Tumble {
+  const tumble = tumbleStyle(pick.tumble);
+  if (tumble === 'long' && pick.platonid === undefined) throw new Error("tumble: 'long' is for the Platonid's throw; the colour and solid dice keep theirs");
+  return tumble;
+}
+
 /** A tray's dice to go without: only the tetrahedron can be left out. */
 export function withoutDice(without: unknown): ('tetra')[] {
   if (without === undefined) return [];
@@ -399,6 +412,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
     async roll(pick) {
       // the result first, so a host can log it before a die leaves the hand; a face not on its die is refused at once
       noTetra(pick.subStance !== undefined);
+      const tumble = rollTumble(pick);
       const { chosen, result } = chooseRoll(pick, platonidFaces);
       await ready;
       if (destroyed || !clearing) throw new Error('The dice tray has been destroyed');
@@ -406,7 +420,7 @@ export function mountDiceTray(el: HTMLElement, opts: DiceTrayOptions = {}): Dice
 
       let landed: Landing;
       try {
-        landed = isReduced() ? clearing.place(chosen) : await clearing.roll(chosen);
+        landed = isReduced() ? clearing.place(chosen) : await clearing.roll(chosen, tumble);
       } catch (e) {
         if (destroyed) throw e;
         console.error('[ic-dice] the throw failed; showing the chosen result', e);

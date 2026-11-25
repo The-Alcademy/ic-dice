@@ -569,6 +569,52 @@ const RECORD_EVERY = 2; // 60 recorded frames a second
 const MAX_SECONDS = 4;
 const SETTLE_BY = 3;
 const DAMPING = { linear: 0.25, angular: 0.15 };
+
+/** How long a throw tumbles: 'normal', or 'long' (a trial, Matthew, 25 Nov 2026; not ruled), for the Platonid alone. */
+export type Tumble = 'normal' | 'long';
+
+/** A tumble; left out, it is 'normal'. Anything else is refused clearly. */
+export function tumbleStyle(tumble: unknown): Tumble {
+  if (tumble === undefined) return 'normal';
+  if (tumble === 'normal' || tumble === 'long') return tumble;
+  throw new Error(`No tumble "${String(tumble)}": it is 'normal' or 'long'`);
+}
+
+/**
+ * A throw's launch and settling. 'normal' is the throw as it has always been.
+ * 'long' launches harder and spins faster, with less angular damping, and
+ * leaves a slowing die alone for longer before the settling damping takes it,
+ * so it tumbles for about twice as long and still comes to rest squarely.
+ */
+export const TUMBLES: Record<Tumble, {
+  /** Launch speed: the least, and the most added at random. */
+  speed: readonly [number, number];
+  /** Launch spin about each axis, either way. */
+  spin: number;
+  damping: { linear: number; angular: number };
+  /** Before this, a die close to rest is not yet damped hard: it may keep rolling. */
+  nearAfter: number;
+  settleBy: number;
+  maxSeconds: number;
+  /** The dish: its pull towards the die's spot (per unit of distance, while it is low and moving), and its drag on its speed across the Clearing, so it does not overshoot. */
+  pull: number;
+  drag: number;
+  /** How a die bounces off the Clearing. */
+  bounce: number;
+  /** The height it leaves the hand at, and its speed upwards then (negative: thrown down). */
+  height: number;
+  rise: number;
+  /** How far in from the rim it leaves the hand. */
+  inset: number;
+}> = {
+  normal: { speed: [6.5, 2.5], spin: 15, damping: DAMPING, nearAfter: 0, settleBy: SETTLE_BY, maxSeconds: MAX_SECONDS, pull: 18, drag: 3.5, bounce: 0.4, height: 2.5, rise: -2, inset: 1 },
+  // tuned by unseen throws of all five solids among dice lying in the reading row: about 1.5 times as long, about one
+  // throw in ten thrown again unseen, and tossed from further in so it stays within the tray's circle on screen
+  long: {
+    speed: [7, 2.5], spin: 28, damping: { linear: 0.1, angular: 0.03 }, nearAfter: 3.5, settleBy: 5, maxSeconds: 6.5,
+    pull: 18, drag: 2.8, bounce: 0.7, height: 3, rise: 7, inset: 2.2,
+  },
+};
 const SETTLING = { linear: 0.9, angular: 0.9 };
 /** Close to rest: down on the Clearing, slower than this, turning slower than this. */
 const NEAR_REST = { speed: 1.2, spin: 4, fall: 0.3 };
@@ -582,12 +628,8 @@ const NEAR_REST = { speed: 1.2, spin: 4, fall: 0.3 };
 export const INNER_RADIUS = CLEARING_RADIUS * 0.2;
 /** Each die's spot: this far from the middle, the two on opposite sides. */
 const SPOT_RADIUS = INNER_RADIUS + 0.65;
-/** The pull towards the spot, per unit of distance, while the die is low and moving. */
-const PULL = 18;
 /** The push away from the other die, per unit it is closer than REST_APART + 0.5. */
 const PUSH = 14;
-/** The dish's drag on a low, moving die, per unit of its speed across the Clearing, so it does not overshoot its spot. */
-const DRAG = 3.5;
 /** Slower than this, a die is left alone to settle and sleep. */
 const PULL_UNTIL = 0.3;
 /** Below this height (of its centre) a die counts as low enough to be pulled. */
@@ -660,12 +702,13 @@ function unit(): number {
   return a[0] / 2 ** 32;
 }
 
-export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode): Simulation {
+export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode, tumble: Tumble = 'normal'): Simulation {
+  const T = TUMBLES[tumble];
   const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -30, 0) });
   world.allowSleep = true;
   const dieMat = new CANNON.Material('die');
   const floorMat = new CANNON.Material('floor');
-  world.addContactMaterial(new CANNON.ContactMaterial(dieMat, floorMat, { friction: 0.12, restitution: 0.4 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(dieMat, floorMat, { friction: 0.12, restitution: T.bounce }));
   world.addContactMaterial(new CANNON.ContactMaterial(dieMat, dieMat, { friction: 0.08, restitution: 0.5 }));
 
   const floor = new CANNON.Body({ mass: 0, material: floorMat, shape: new CANNON.Plane() });
@@ -721,18 +764,18 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>,
     const body = bodies[which];
     body.sleepSpeedLimit = 0.08;
     body.sleepTimeLimit = 0.25;
-    body.linearDamping = DAMPING.linear;
-    body.angularDamping = DAMPING.angular;
+    body.linearDamping = T.damping.linear;
+    body.angularDamping = T.damping.angular;
     if (thrown.includes(which)) {
       // in from the rim, from the side (so it never crosses the other die's path), towards its own spot, tumbling
       const s = spot[which]!;
       const a = Math.atan2(s.z, s.x) + Math.PI / 2 + (unit() - 0.5) * 0.6;
-      body.position.set(Math.cos(a) * (CLEARING_RADIUS - 1), 2.5 + unit(), Math.sin(a) * (CLEARING_RADIUS - 1));
+      body.position.set(Math.cos(a) * (CLEARING_RADIUS - T.inset), T.height + unit(), Math.sin(a) * (CLEARING_RADIUS - T.inset));
       body.quaternion.setFromEuler(unit() * 6.3, unit() * 6.3, unit() * 6.3);
       const to = Math.atan2(s.z - body.position.z, s.x - body.position.x) + (unit() - 0.5) * 0.4;
-      const speed = 6.5 + unit() * 2.5;
-      body.velocity.set(Math.cos(to) * speed, -2, Math.sin(to) * speed);
-      body.angularVelocity.set((unit() - 0.5) * 30, (unit() - 0.5) * 30, (unit() - 0.5) * 30);
+      const speed = T.speed[0] + unit() * T.speed[1];
+      body.velocity.set(Math.cos(to) * speed, T.rise, Math.sin(to) * speed);
+      body.angularVelocity.set((unit() - 0.5) * 2 * T.spin, (unit() - 0.5) * 2 * T.spin, (unit() - 0.5) * 2 * T.spin);
     } else {
       // the other die lies where it came to rest, and does not move
       const pose = resting[which];
@@ -755,7 +798,7 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>,
   const record: number[][] = order.map(() => []);
   let lastTouch = -1;
   const moving = () => thrown.some((w) => bodies[w].sleepState !== CANNON.Body.SLEEPING);
-  while (step < MAX_SECONDS / STEP) {
+  while (step < T.maxSeconds / STEP) {
     if (step % RECORD_EVERY === 0) {
       order.forEach((w, i) => {
         const b = bodies[w];
@@ -765,18 +808,19 @@ export function simulate(thrown: Which[], resting: Partial<Record<Which, Pose>>,
     for (const w of thrown) {
       const b = bodies[w];
       const near =
+        step * STEP >= T.nearAfter &&
         Math.abs(b.velocity.y) < NEAR_REST.fall &&
         b.velocity.length() < NEAR_REST.speed &&
         b.angularVelocity.length() < NEAR_REST.spin;
-      const settle = near || step * STEP >= SETTLE_BY;
-      b.linearDamping = settle ? SETTLING.linear : DAMPING.linear;
-      b.angularDamping = settle ? SETTLING.angular : DAMPING.angular;
+      const settle = near || step * STEP >= T.settleBy;
+      b.linearDamping = settle ? SETTLING.linear : T.damping.linear;
+      b.angularDamping = settle ? SETTLING.angular : T.damping.angular;
       // the dish: low and still moving, drawn towards its spot and away from the
       // other die; once slow it is left alone, so it can fall asleep
       if (b.position.y < PULL_BELOW && b.velocity.length() > PULL_UNTIL) {
         const s = spot[w]!;
-        let fx = (s.x - b.position.x) * PULL - b.velocity.x * DRAG;
-        let fz = (s.z - b.position.z) * PULL - b.velocity.z * DRAG;
+        let fx = (s.x - b.position.x) * T.pull - b.velocity.x * T.drag;
+        let fz = (s.z - b.position.z) * T.pull - b.velocity.z * T.drag;
         // and away from every other die on the Clearing
         for (const other of present) {
           if (other === w) continue;
@@ -865,9 +909,9 @@ function flatness(w: Which, q: THREE.Quaternion, platonid?: PlatonidCode): numbe
 export const TRIES = 40;
 
 /** Throw unseen until one rests well (see restsWell), or null after TRIES. */
-export function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode): Simulation | null {
+export function throwUnseen(thrown: Which[], resting: Partial<Record<Which, Pose>>, platonid?: PlatonidCode, tumble: Tumble = 'normal'): Simulation | null {
   for (let attempt = 0; attempt < TRIES; attempt++) {
-    const s = simulate(thrown, resting, platonid);
+    const s = simulate(thrown, resting, platonid, tumble);
     if (restsWell(s, thrown)) return s;
   }
   return null;
@@ -1180,8 +1224,8 @@ export interface PlatonidSpec {
 }
 
 export interface Clearing {
-  /** Throw the named dice so they land on the chosen results. A parked die is unparked first; a die off the table comes onto it. */
-  roll(chosen: Chosen): Promise<Landing>;
+  /** Throw the named dice so they land on the chosen results, tumbling as `tumble` says (the Platonid's throw only). A parked die is unparked first; a die off the table comes onto it. */
+  roll(chosen: Chosen, tumble?: Tumble): Promise<Landing>;
   /** Put the dice at rest on the chosen results, with no throw (reduced motion). */
   place(chosen: Chosen): Landing;
   /**
@@ -1633,7 +1677,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
     onLand: () => {},
     destroy: () => {},
 
-    async roll(chosen) {
+    async roll(chosen, tumble = 'normal') {
       if (playing) throw new Error('The dice are already rolling');
       playing = true;
       const thrown = DICE.filter((w) => chosen[w] !== undefined);
@@ -1654,7 +1698,7 @@ export function createClearing(host: HTMLElement, paper: Paper = 'light', option
       for (const w of table.onTable()) if (!thrown.includes(w)) resting[w] = { p: meshes[w].position.clone(), q: meshes[w].quaternion.clone() };
 
       // 2. simulate unseen until the dice rest squarely, near the middle and apart
-      const sim = throwUnseen(thrown, resting, platonid?.solid);
+      const sim = throwUnseen(thrown, resting, platonid?.solid, tumble);
       if (!sim) {
         playing = false;
         throw new Error(`No throw came to rest well in ${TRIES} tries`);

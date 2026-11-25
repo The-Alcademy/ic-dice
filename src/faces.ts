@@ -30,43 +30,43 @@ export interface School {
  * The MetaMind cube, in mandala order: Purple at north, then clockwise. Only
  * "at the Drawing Board" is settled; every other preposition is PROVISIONAL.
  */
-// The colours are ic-house-style's School palette (tokens/tokens.json at 50548ff),
+// The colours are ic-house-style's School palette (tokens/tokens.json 1.5.0, at 0c22ece: D-179, D-180),
 // the canonical one: `core` for fills and marks, `glow` for them on dark paper, `deep` for text on pale ground.
 // ic-dice cannot depend on ic-house-style (a private repo), so they are copied
 // here, and tests/faces.test.ts pins them to those values.
 export const CUBE: readonly School[] = [
   {
-    facultyLetter: 'R', faculty: 'REBIS', colour: 'Purple', core: '#a879e0', glow: '#c6a3f0', deep: '#8441d3', domain: 'PsychoAlchemy',
+    facultyLetter: 'R', faculty: 'REBIS', colour: 'Purple', core: '#8659a3', glow: '#c8a5df', deep: '#66248e', domain: 'PsychoAlchemy',
     gloss: 'transmute belief — hold opposites until a new whole forms',
     hall: 'the Looking Glass', title: 'the Hall of Reflection',
     prep: 'at', // PROVISIONAL
   },
   {
-    facultyLetter: 'P', faculty: 'PILOT', colour: 'Red', core: '#c14a55', glow: '#e08a90', deep: '#b43e49', domain: 'PsychoNautics',
+    facultyLetter: 'P', faculty: 'PILOT', colour: 'Red', core: '#cc2f2a', glow: '#f28176', deep: '#b9191a', domain: 'PsychoNautics',
     gloss: 'steer your own consciousness',
     hall: 'the Lantern', title: 'the Hall of Perception',
     prep: 'in', // PROVISIONAL
   },
   {
-    facultyLetter: 'S', faculty: 'SALVE', colour: 'Orange', core: '#cf8331', glow: '#e6a566', deep: '#905b21', domain: 'PsychoTherapeutics',
+    facultyLetter: 'S', faculty: 'SALVE', colour: 'Orange', core: '#ec8a1c', glow: '#ffae5f', deep: '#995705', domain: 'PsychoTherapeutics',
     gloss: 'tend and restore wellbeing',
     hall: 'the Sensorium', title: 'the Hall of Sensing',
     prep: 'in', // PROVISIONAL
   },
   {
-    facultyLetter: 'I', faculty: 'IMPRO', colour: 'Yellow', core: '#caa62c', glow: '#ddc766', deep: '#7a651b', domain: 'PsychoLudics',
+    facultyLetter: 'I', faculty: 'IMPRO', colour: 'Yellow', core: '#f5cc1f', glow: '#ffe968', deep: '#7a6500', domain: 'PsychoLudics',
     gloss: 'play in earnest — to improvise',
     hall: 'the Drawing Board', title: 'the Hall of Invention',
     prep: 'at', // settled
   },
   {
-    facultyLetter: 'W', faculty: 'WEAVE', colour: 'Green', core: '#5c9a55', glow: '#88c081', deep: '#43713e', domain: 'PsychoTerranics',
+    facultyLetter: 'W', faculty: 'WEAVE', colour: 'Green', core: '#3f8148', glow: '#84c08a', deep: '#295930', domain: 'PsychoTerranics',
     gloss: 'live woven into the web of life',
     hall: 'the Ramble', title: 'the Hall of Wandering',
     prep: 'on', // PROVISIONAL
   },
   {
-    facultyLetter: 'A', faculty: 'ALIGN', colour: 'Blue', core: '#5285c4', glow: '#82a8dc', deep: '#3869a5', domain: 'PsychoTechnics',
+    facultyLetter: 'A', faculty: 'ALIGN', colour: 'Blue', core: '#264792', glow: '#92a2e7', deep: '#022e74', domain: 'PsychoTechnics',
     gloss: "test reality and name what's true",
     hall: 'the Anomaly', title: 'the Hall of Asking',
     prep: 'at', // PROVISIONAL
